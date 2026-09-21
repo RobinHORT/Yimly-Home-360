@@ -1,0 +1,264 @@
+import React, { useEffect, useState } from "react";
+import { UserInfo } from "../types";
+import { PWAInstallButton } from "./PWAInstallButton";
+import { Settings, Smartphone, LogOut, HelpCircle } from "lucide-react";
+
+interface SettingsTabProps {
+  user: UserInfo | null;
+  onLogout: () => void;
+  onUserUpdate?: (updated: UserInfo) => void;
+}
+
+const PASTEL_PALETTE = [
+  { name: "Soft Lavender", hex: "#E2D9F3" },
+  { name: "Rose Quartz", hex: "#FAD2E1" },
+  { name: "Peach Puff", hex: "#FDE2E4" },
+  { name: "Pale Melon", hex: "#FFF1E6" },
+  { name: "Pale Custard", hex: "#FFFCF2" },
+  { name: "Mint Foam", hex: "#E2F0CB" },
+  { name: "Pale Turquoise", hex: "#C7F9CC" },
+  { name: "Powder Green", hex: "#D8F3DC" },
+  { name: "Sky Mist", hex: "#D8E2DC" },
+  { name: "Baby Blue", hex: "#BEE3DB" },
+  { name: "Periwinkle", hex: "#E8ECFB" },
+  { name: "Lilac Whisper", hex: "#E8DBFC" },
+  { name: "Orchid Petal", hex: "#F3C6F1" },
+  { name: "Cotton Candy", hex: "#FFC6FF" },
+  { name: "Desert Sage", hex: "#ECE4DB" }
+];
+
+interface ConnectedDevice {
+  entityId: string;
+  name: string;
+  battery: string | number;
+  lastUpdated: string;
+}
+
+export const SettingsTab: React.FC<SettingsTabProps> = ({ user, onLogout, onUserUpdate }) => {
+  const [devices, setDevices] = useState<ConnectedDevice[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedColor, setSelectedColor] = useState<string | null>(user?.avatar_color || null);
+  const [savingColor, setSavingColor] = useState(false);
+
+  useEffect(() => {
+    fetchDevices();
+  }, []);
+
+  useEffect(() => {
+    if (user?.avatar_color) {
+      setSelectedColor(user.avatar_color);
+    }
+  }, [user]);
+
+  const handleSelectColor = async (colorHex: string) => {
+    setSelectedColor(colorHex);
+    setSavingColor(true);
+    const token = localStorage.getItem("access_token");
+    if (!token) return;
+
+    try {
+      const res = await fetch("/api/auth/profile", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ avatar_color: colorHex })
+      });
+      if (res.ok) {
+        const updatedUser = await res.json();
+        if (onUserUpdate) {
+          onUserUpdate(updatedUser);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to persist avatar color:", err);
+    } finally {
+      setSavingColor(false);
+    }
+  };
+
+  const fetchDevices = async () => {
+    setLoading(true);
+    const token = localStorage.getItem("access_token");
+    if (!token) return;
+
+    try {
+      const res = await fetch("/api/states", {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        // Filter elements starting with 'device_tracker.'
+        const trackerDevices = data
+          .filter((entity: any) => entity.entity_id.startsWith("device_tracker."))
+          .map((entity: any) => ({
+            entityId: entity.entity_id,
+            name: entity.attributes?.friendly_name || entity.entity_id.replace("device_tracker.", ""),
+            battery: entity.attributes?.battery_level || "100",
+            lastUpdated: new Date(entity.last_updated).toLocaleString()
+          }));
+        setDevices(trackerDevices);
+      }
+    } catch (err) {
+      console.error("Error retrieving device states:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Dynamically extract server origin URL for connection setup instruction
+  const serverOrigin = window.location.origin;
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-6">
+      
+      {/* Profile & Identity Card */}
+      <div className="bg-white p-7 sm:p-8 rounded-3xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.015)] space-y-4">
+        <div className="flex items-center gap-2">
+          <Settings className="w-5 h-5 text-indigo-600" />
+          <h2 className="text-base font-bold text-slate-800">Account Settings</h2>
+        </div>
+
+        <div className="p-5 rounded-2xl bg-slate-50/50 border border-slate-100/60 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div 
+              className="h-11 w-11 text-white font-extrabold text-base rounded-full flex items-center justify-center select-none shadow-sm transition-all duration-300"
+              style={{ 
+                backgroundColor: selectedColor || "#4f46e5", 
+                border: selectedColor ? "3px solid white" : "none",
+                boxShadow: selectedColor ? `0 0 0 3px ${selectedColor}` : "none" 
+              }}
+            >
+              {user?.display_name ? user.display_name.charAt(0).toUpperCase() : "U"}
+            </div>
+            <div>
+              <p className="text-sm font-bold text-slate-800">{user?.display_name}</p>
+              <p className="text-[10px] text-slate-400 font-bold mt-0.5">Username: {user?.username}</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <span className="inline-flex items-center rounded-lg bg-indigo-50 px-2.5 py-1 text-[9px] font-extrabold text-indigo-700 ring-1 ring-inset ring-indigo-700/10 uppercase tracking-wider">
+              Administrator
+            </span>
+          </div>
+        </div>
+
+        {/* Avatar Customize Panel */}
+        <div className="border-t border-slate-100/80 pt-6 mt-4 space-y-4">
+          <div>
+            <h3 className="text-xs font-bold text-slate-700">Customize Avatar Theme</h3>
+            <p className="text-[10px] text-slate-400 font-bold mt-0.5">Select a pastel theme to identify your profile across devices.</p>
+          </div>
+
+          <div className="grid grid-cols-5 gap-2.5 sm:grid-cols-8 md:grid-cols-15">
+            {PASTEL_PALETTE.map((item) => {
+              const isSelected = selectedColor === item.hex;
+              return (
+                <button
+                  key={item.hex}
+                  type="button"
+                  title={item.name}
+                  onClick={() => handleSelectColor(item.hex)}
+                  className="relative h-8 w-8 rounded-full border cursor-pointer transition-all duration-200 hover:scale-110 active:scale-95 flex items-center justify-center shadow-sm"
+                  style={{ 
+                    backgroundColor: item.hex,
+                    borderColor: isSelected ? "#4f46e5" : "rgba(0,0,0,0.06)",
+                    borderWidth: isSelected ? "2px" : "1px",
+                    boxShadow: isSelected ? `0 0 8px ${item.hex}` : "none"
+                  }}
+                >
+                  {isSelected && (
+                    <div className="w-1.5 h-1.5 bg-slate-700 rounded-full" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* COMPANION APP REGISTRATION GUIDE */}
+      <div className="bg-white p-7 sm:p-8 rounded-3xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.015)] space-y-4">
+        <div className="flex items-center gap-2">
+          <HelpCircle className="w-5 h-5 text-indigo-600" />
+          <h2 className="text-sm font-bold text-slate-800">Home Assistant Companion Setup Guide</h2>
+        </div>
+        
+        <p className="text-xs text-slate-400 font-semibold leading-relaxed">
+          Yimly Home uses standard, production-hardened Home Assistant companion app protocols. You can connect the official Companion App directly to this bridge.
+        </p>
+
+        <div className="p-5 rounded-2xl bg-slate-50/50 border border-slate-100/60 space-y-3.5">
+          <div>
+            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-1">1. Server Address</span>
+            <input
+              type="text"
+              readOnly
+              value={serverOrigin}
+              className="w-full mt-1 px-4 py-2 bg-white border border-slate-100 rounded-xl text-xs font-mono text-indigo-600 select-all shadow-sm focus:outline-none"
+            />
+          </div>
+          <div>
+            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-1">2. Credentials</span>
+            <p className="text-xs text-slate-400 font-semibold mt-1 leading-relaxed">
+              Use your Yimly account credentials (<strong className="text-slate-600 font-bold">{user?.username}</strong>) and password directly. No extra token setup required!
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* REGISTERED TELEMETRY DEVICES */}
+      <div className="bg-white p-7 sm:p-8 rounded-3xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.015)] space-y-4">
+        <div className="flex items-center gap-2">
+          <Smartphone className="w-5 h-5 text-indigo-600" />
+          <h2 className="text-sm font-bold text-slate-800">Your Connected Devices ({devices.length})</h2>
+        </div>
+
+        {loading ? (
+          <p className="text-xs text-slate-400 font-semibold">Loading companion telemetry units...</p>
+        ) : devices.length === 0 ? (
+          <div className="p-5 rounded-2xl bg-slate-50/50 border border-slate-100/60 text-center">
+            <p className="text-xs font-bold text-slate-600">No active tracking units paired yet</p>
+            <p className="text-[10px] text-slate-400 font-semibold mt-1">Configure the companion app to sync device telemetry.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {devices.map((device) => (
+              <div
+                key={device.entityId}
+                className="p-4 rounded-2xl bg-slate-50/50 border border-slate-100/60 flex items-center justify-between"
+              >
+                <div>
+                  <p className="text-xs font-bold text-slate-800">{device.name}</p>
+                  <p className="text-[9px] text-slate-400 font-mono font-semibold mt-1">{device.entityId}</p>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs text-slate-700 font-bold">{device.battery}% Battery</span>
+                  <p className="text-[9px] text-slate-400 font-semibold mt-1">Updated: {device.lastUpdated}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* SYSTEM CONTROLS & LOGOUT */}
+      <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.015)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-center gap-2">
+          <PWAInstallButton />
+        </div>
+
+        <button
+          onClick={onLogout}
+          className="flex items-center justify-center gap-2 rounded-2xl bg-rose-50 hover:bg-rose-100/80 active:bg-rose-200 text-rose-700 font-bold px-4 py-2.5 text-xs transition border border-rose-100/30 shadow-sm cursor-pointer"
+        >
+          <LogOut className="w-4 h-4 text-rose-500" />
+          Sign Out of Account
+        </button>
+      </div>
+    </div>
+  );
+};
