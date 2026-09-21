@@ -13,10 +13,19 @@ class UserResponse(BaseModel):
     avatar_color: Optional[str] = None
     profile_picture_url: Optional[str] = None
     map_style: Optional[str] = "osm"
+    map_selected_icon_size: Optional[int] = 48
+    map_unselected_icon_size: Optional[int] = 36
     is_active: bool
 
     class Config:
         from_attributes = True
+
+class ProfileUpdate(BaseModel):
+    avatar_color: Optional[str] = None
+    display_name: Optional[str] = None
+    map_style: Optional[str] = None
+    map_selected_icon_size: Optional[int] = Field(None, ge=24, le=72, description="Selected member map icon size (24-72 px)")
+    map_unselected_icon_size: Optional[int] = Field(None, ge=24, le=72, description="Unselected member map icon size (24-72 px)")
 
 class TokenResponse(BaseModel):
     access_token: str

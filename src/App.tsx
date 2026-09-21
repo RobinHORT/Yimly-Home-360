@@ -17,7 +17,6 @@ import {
 
 import { Circle, CircleMember, UserInfo } from "./types";
 import { MapComponent } from "./components/MapComponent";
-import { CircleSelector } from "./components/CircleSelector";
 import { PeopleTab } from "./components/PeopleTab";
 import { PlacesTab } from "./components/PlacesTab";
 import { AlertsTab } from "./components/AlertsTab";
@@ -232,6 +231,76 @@ export default function App() {
     }
   };
 
+  // LEAVE CIRCLE
+  const handleLeaveCircle = async (circleId: number) => {
+    const token = localStorage.getItem("access_token");
+    if (!token) return;
+
+    const res = await fetch(`/api/circles/${circleId}/leave`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    if (res.ok) {
+      const remainingRes = await fetch("/api/circles", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (remainingRes.ok) {
+        const remaining: Circle[] = await remainingRes.json();
+        setCircles(remaining);
+        if (selectedCircle?.id === circleId) {
+          if (remaining.length > 0) {
+            setSelectedCircle(remaining[0]);
+          } else {
+            setSelectedCircle(null);
+            setCircleMembers([]);
+          }
+        }
+      }
+    } else {
+      const data = await res.json();
+      throw new Error(data.detail || "Failed to leave circle");
+    }
+  };
+
+  // DELETE CIRCLE (Admin/Owner only)
+  const handleDeleteCircle = async (circleId: number) => {
+    const token = localStorage.getItem("access_token");
+    if (!token) return;
+
+    const res = await fetch(`/api/circles/${circleId}`, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    if (res.ok) {
+      const remainingRes = await fetch("/api/circles", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (remainingRes.ok) {
+        const remaining: Circle[] = await remainingRes.json();
+        setCircles(remaining);
+        if (selectedCircle?.id === circleId) {
+          if (remaining.length > 0) {
+            setSelectedCircle(remaining[0]);
+          } else {
+            setSelectedCircle(null);
+            setCircleMembers([]);
+          }
+        }
+      }
+    } else {
+      const data = await res.json();
+      throw new Error(data.detail || "Failed to delete Family Circle");
+    }
+  };
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -353,29 +422,12 @@ export default function App() {
               onRefresh={() => selectedCircle && fetchCircleMembers(selectedCircle.id)}
               loading={circlesLoading}
               mapStyle={user?.map_style}
+              selectedIconSize={user?.map_selected_icon_size}
+              unselectedIconSize={user?.map_unselected_icon_size}
             />
           </div>
 
-          {/* 2. FLOATING TOP HEADER & CIRCLE SELECTOR */}
-          <header className="fixed top-4 left-4 right-16 md:right-auto md:max-w-md z-30 pointer-events-auto">
-            <div className="flex items-center gap-2">
-              <div className="h-10 w-10 bg-white/90 backdrop-blur-2xl rounded-full border border-white/80 shadow-xl flex items-center justify-center text-indigo-600 shrink-0">
-                <Home className="h-5 w-5" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <CircleSelector
-                  circles={circles}
-                  selectedCircle={selectedCircle}
-                  onSelectCircle={(c) => setSelectedCircle(c)}
-                  onCreateCircle={handleCreateCircle}
-                  onJoinCircle={handleJoinCircle}
-                  loading={circlesLoading}
-                />
-              </div>
-            </div>
-          </header>
-
-          {/* 3. FLOATING NAVIGATION DOCK (DESKTOP) */}
+          {/* 2. FLOATING NAVIGATION DOCK (DESKTOP) */}
           <nav className="hidden md:flex fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-white/85 backdrop-blur-2xl p-2 rounded-full border border-white/80 shadow-2xl items-center gap-1.5 pointer-events-auto">
             <button
               onClick={() => setActiveTab("map")}
@@ -563,6 +615,14 @@ export default function App() {
                         fetchCircleMembers(selectedCircle.id, true);
                       }
                     }}
+                    circles={circles}
+                    selectedCircle={selectedCircle}
+                    onSelectCircle={(c) => setSelectedCircle(c)}
+                    onCreateCircle={handleCreateCircle}
+                    onJoinCircle={handleJoinCircle}
+                    onLeaveCircle={handleLeaveCircle}
+                    onDeleteCircle={handleDeleteCircle}
+                    circlesLoading={circlesLoading}
                   />
                 )}
               </motion.div>

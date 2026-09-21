@@ -13,7 +13,7 @@ from app.core.logging import logger
 from app.core.security import create_jwt_token
 from app.db.database import get_db
 from app.db.models import User
-from app.schemas.auth import UserCreate, UserResponse
+from app.schemas.auth import UserCreate, UserResponse, ProfileUpdate
 from app.services.auth_service import AuthService
 from app.services.token_service import TokenService
 
@@ -261,16 +261,14 @@ async def api_login(login_in: LoginRequest, db: AsyncSession = Depends(get_db)):
             "display_name": user.display_name,
             "avatar_color": user.avatar_color,
             "profile_picture_url": user.profile_picture_url,
-            "map_style": user.map_style or "osm"
+            "map_style": user.map_style or "osm",
+            "map_selected_icon_size": user.map_selected_icon_size or 48,
+            "map_unselected_icon_size": user.map_unselected_icon_size or 36
         }
     }
 
 
 from app.api.deps import require_authenticated_user
-
-class ProfileUpdate(BaseModel):
-    avatar_color: Optional[str] = None
-    map_style: Optional[str] = None
 
 @router.get("/api/auth/me", response_model=UserResponse)
 async def get_me(current_user: User = Depends(require_authenticated_user)):
@@ -284,6 +282,8 @@ async def update_profile(
 ):
     if profile_in.avatar_color is not None:
         current_user.avatar_color = profile_in.avatar_color
+    if profile_in.display_name is not None:
+        current_user.display_name = profile_in.display_name
     if profile_in.map_style is not None:
         allowed_styles = {"osm", "openfree_positron", "openfree_bright", "openfree_liberty", "openfree_dark", "openfree_fiord", "carto_voyager", "carto_positron", "carto_dark"}
         if profile_in.map_style in allowed_styles:
@@ -292,6 +292,22 @@ async def update_profile(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid map_style value. Must be one of {allowed_styles}"
+            )
+    if profile_in.map_selected_icon_size is not None:
+        if 24 <= profile_in.map_selected_icon_size <= 72:
+            current_user.map_selected_icon_size = profile_in.map_selected_icon_size
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="map_selected_icon_size must be between 24 and 72 pixels."
+            )
+    if profile_in.map_unselected_icon_size is not None:
+        if 24 <= profile_in.map_unselected_icon_size <= 72:
+            current_user.map_unselected_icon_size = profile_in.map_unselected_icon_size
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="map_unselected_icon_size must be between 24 and 72 pixels."
             )
     db.add(current_user)
     await db.commit()

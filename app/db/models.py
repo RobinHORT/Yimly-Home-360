@@ -16,6 +16,8 @@ class User(Base):
     avatar_color: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     profile_picture_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     map_style: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, default="osm")
+    map_selected_icon_size: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=48)
+    map_unselected_icon_size: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=36)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)

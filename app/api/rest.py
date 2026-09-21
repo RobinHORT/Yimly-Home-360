@@ -1,12 +1,13 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import require_authenticated_user
 from app.core.config import settings
 from app.core.logging import logger
 from app.db.database import get_db
-from app.db.models import User
+from app.db.models import User, LocationHistory, CircleMember, EntityState
 from app.schemas.api import ConfigResponse, EntityStateResponse, UnitSystem
 from app.services.state_service import StateService
 
@@ -130,4 +131,101 @@ async def api_events(user: User = Depends(require_authenticated_user)):
             "event": "state_changed",
             "listener_count": 0
         }
+    ]
+
+@router.get("/api/history/period")
+@router.get("/api/history/period/{timestamp}")
+async def api_get_history_period(
+    timestamp: Optional[str] = None,
+    user_id: Optional[int] = Query(None),
+    filter_entity_id: Optional[str] = Query(None),
+    hours: Optional[int] = Query(None),
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    user: User = Depends(require_authenticated_user),
+    db: AsyncSession = Depends(get_db)
+):
+    target_user_id = user_id if user_id is not None else user.id
+
+    # Verify authorization: current user can view their own history or members in a shared circle
+    if target_user_id != user.id:
+        stmt_user_circles = select(CircleMember.circle_id).where(CircleMember.user_id == user.id)
+        user_circle_ids = (await db.execute(stmt_user_circles)).scalars().all()
+
+        stmt_shared = select(CircleMember).where(
+            CircleMember.user_id == target_user_id,
+            CircleMember.circle_id.in_(user_circle_ids)
+        )
+        has_shared = (await db.execute(stmt_shared)).scalar_one_or_none()
+        if not has_shared:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to view this member's location history"
+            )
+
+    stmt = select(LocationHistory).where(LocationHistory.user_id == target_user_id)
+    if hours:
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+        stmt = stmt.where(LocationHistory.timestamp >= cutoff)
+    else:
+        if start_date:
+            try:
+                if "T" in start_date:
+                    start_dt = datetime.fromisoformat(start_date.replace("Z", "+00:00"))
+                else:
+                    start_dt = datetime.fromisoformat(f"{start_date}T00:00:00+00:00")
+                stmt = stmt.where(LocationHistory.timestamp >= start_dt)
+            except Exception:
+                pass
+        if end_date:
+            try:
+                if "T" in end_date:
+                    end_dt = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
+                else:
+                    end_dt = datetime.fromisoformat(f"{end_date}T23:59:59.999999+00:00")
+                stmt = stmt.where(LocationHistory.timestamp <= end_dt)
+            except Exception:
+                pass
+
+    stmt = stmt.order_by(LocationHistory.timestamp.desc()).limit(200)
+    res = await db.execute(stmt)
+    records = res.scalars().all()
+
+    if not records:
+        # Fallback to current device_tracker states if no recorded history entries yet
+        stmt_states = select(EntityState).where(
+            EntityState.user_id == target_user_id,
+            EntityState.domain == "device_tracker"
+        )
+        res_states = await db.execute(stmt_states)
+        states = res_states.scalars().all()
+        return [
+            {
+                "id": f"state_{st.entity_id}",
+                "entity_id": st.entity_id,
+                "user_id": st.user_id,
+                "latitude": st.latitude,
+                "longitude": st.longitude,
+                "accuracy": st.attributes.get("gps_accuracy") if isinstance(st.attributes, dict) else None,
+                "battery_level": st.attributes.get("battery_level") or st.attributes.get("battery") if isinstance(st.attributes, dict) else None,
+                "timestamp": st.last_updated.isoformat() if hasattr(st.last_updated, "isoformat") else str(st.last_updated)
+            }
+            for st in states
+            if st.latitude is not None and st.longitude is not None
+        ]
+
+    return [
+        {
+            "id": str(r.id),
+            "entity_id": f"device_tracker.device_{r.device_id}",
+            "user_id": r.user_id,
+            "latitude": r.latitude,
+            "longitude": r.longitude,
+            "accuracy": r.accuracy,
+            "altitude": r.altitude,
+            "speed": r.speed,
+            "bearing": r.bearing,
+            "timestamp": r.timestamp.isoformat() if hasattr(r.timestamp, "isoformat") else str(r.timestamp)
+        }
+        for r in records
     ]

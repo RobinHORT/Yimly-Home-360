@@ -40,6 +40,8 @@ export interface UserData {
   avatar_color?: string | null;
   profile_picture_url?: string | null;
   map_style?: string | null;
+  map_selected_icon_size?: number | null;
+  map_unselected_icon_size?: number | null;
   created_at: string;
 }
 
@@ -84,6 +86,240 @@ export interface YimlyPreviewDatabase {
   circle_members: CircleMemberData[];
   entity_states: EntityStateData[];
   location_history: LocationHistoryEntry[];
+}
+
+// Helper to build deterministic Preview-only historical location points
+function getDeterministicPreviewHistory(): LocationHistoryEntry[] {
+  const now = Date.now();
+  const d = 24 * 3600 * 1000;
+  const h = 3600 * 1000;
+  const m = 60 * 1000;
+
+  return [
+    // User 1 (Admin) - Route around SF (Dolores Park -> Haight -> Golden Gate Park -> Embarcadero)
+    {
+      id: "prev_hist_u1_1",
+      entity_id: "device_tracker.admin_preview_phone",
+      user_id: 1,
+      latitude: 37.7749,
+      longitude: -122.4194,
+      accuracy: 5,
+      battery_level: 95,
+      timestamp: new Date(now - 15 * m).toISOString()
+    },
+    {
+      id: "prev_hist_u1_2",
+      entity_id: "device_tracker.admin_preview_phone",
+      user_id: 1,
+      latitude: 37.7712,
+      longitude: -122.4215,
+      accuracy: 6,
+      battery_level: 93,
+      timestamp: new Date(now - 45 * m).toISOString()
+    },
+    {
+      id: "prev_hist_u1_3",
+      entity_id: "device_tracker.admin_preview_phone",
+      user_id: 1,
+      latitude: 37.7600,
+      longitude: -122.4210,
+      accuracy: 8,
+      battery_level: 90,
+      timestamp: new Date(now - 2 * h).toISOString()
+    },
+    {
+      id: "prev_hist_u1_4",
+      entity_id: "device_tracker.admin_preview_phone",
+      user_id: 1,
+      latitude: 37.7680,
+      longitude: -122.4460,
+      accuracy: 7,
+      battery_level: 86,
+      timestamp: new Date(now - 4 * h).toISOString()
+    },
+    {
+      id: "prev_hist_u1_5",
+      entity_id: "device_tracker.admin_preview_phone",
+      user_id: 1,
+      latitude: 37.7715,
+      longitude: -122.4680,
+      accuracy: 9,
+      battery_level: 82,
+      timestamp: new Date(now - 7 * h).toISOString()
+    },
+    {
+      id: "prev_hist_u1_6",
+      entity_id: "device_tracker.admin_preview_phone",
+      user_id: 1,
+      latitude: 37.7740,
+      longitude: -122.4850,
+      accuracy: 10,
+      battery_level: 78,
+      timestamp: new Date(now - 10 * h).toISOString()
+    },
+    {
+      id: "prev_hist_u1_7",
+      entity_id: "device_tracker.admin_preview_phone",
+      user_id: 1,
+      latitude: 37.7955,
+      longitude: -122.3937,
+      accuracy: 6,
+      battery_level: 65,
+      timestamp: new Date(now - 22 * h).toISOString()
+    },
+    {
+      id: "prev_hist_u1_8",
+      entity_id: "device_tracker.admin_preview_phone",
+      user_id: 1,
+      latitude: 37.7920,
+      longitude: -122.4040,
+      accuracy: 8,
+      battery_level: 60,
+      timestamp: new Date(now - 24 * h).toISOString()
+    },
+    {
+      id: "prev_hist_u1_9",
+      entity_id: "device_tracker.admin_preview_phone",
+      user_id: 1,
+      latitude: 37.8020,
+      longitude: -122.4480,
+      accuracy: 5,
+      battery_level: 45,
+      timestamp: new Date(now - 2 * d - 2 * h).toISOString()
+    },
+    {
+      id: "prev_hist_u1_10",
+      entity_id: "device_tracker.admin_preview_phone",
+      user_id: 1,
+      latitude: 37.8060,
+      longitude: -122.4200,
+      accuracy: 6,
+      battery_level: 52,
+      timestamp: new Date(now - 3 * d - 4 * h).toISOString()
+    },
+    {
+      id: "prev_hist_u1_11",
+      entity_id: "device_tracker.admin_preview_phone",
+      user_id: 1,
+      latitude: 37.7850,
+      longitude: -122.4080,
+      accuracy: 7,
+      battery_level: 68,
+      timestamp: new Date(now - 5 * d - 1 * h).toISOString()
+    },
+    {
+      id: "prev_hist_u1_12",
+      entity_id: "device_tracker.admin_preview_phone",
+      user_id: 1,
+      latitude: 37.7780,
+      longitude: -122.3900,
+      accuracy: 5,
+      battery_level: 75,
+      timestamp: new Date(now - 6 * d - 18 * h).toISOString()
+    },
+
+    // User 2 (Member) - Route around SF (Civic Center -> Union Sq -> Chinatown -> Coit Tower -> Pier 39)
+    {
+      id: "prev_hist_u2_1",
+      entity_id: "device_tracker.member_preview_phone",
+      user_id: 2,
+      latitude: 37.7833,
+      longitude: -122.4167,
+      accuracy: 6,
+      battery_level: 82,
+      timestamp: new Date(now - 20 * m).toISOString()
+    },
+    {
+      id: "prev_hist_u2_2",
+      entity_id: "device_tracker.member_preview_phone",
+      user_id: 2,
+      latitude: 37.7875,
+      longitude: -122.4072,
+      accuracy: 8,
+      battery_level: 80,
+      timestamp: new Date(now - 50 * m).toISOString()
+    },
+    {
+      id: "prev_hist_u2_3",
+      entity_id: "device_tracker.member_preview_phone",
+      user_id: 2,
+      latitude: 37.7950,
+      longitude: -122.4030,
+      accuracy: 10,
+      battery_level: 75,
+      timestamp: new Date(now - 3 * h).toISOString()
+    },
+    {
+      id: "prev_hist_u2_4",
+      entity_id: "device_tracker.member_preview_phone",
+      user_id: 2,
+      latitude: 37.8010,
+      longitude: -122.4090,
+      accuracy: 7,
+      battery_level: 70,
+      timestamp: new Date(now - 5 * h).toISOString()
+    },
+    {
+      id: "prev_hist_u2_5",
+      entity_id: "device_tracker.member_preview_phone",
+      user_id: 2,
+      latitude: 37.8085,
+      longitude: -122.4100,
+      accuracy: 5,
+      battery_level: 64,
+      timestamp: new Date(now - 8 * h).toISOString()
+    },
+    {
+      id: "prev_hist_u2_6",
+      entity_id: "device_tracker.member_preview_phone",
+      user_id: 2,
+      latitude: 37.7760,
+      longitude: -122.4350,
+      accuracy: 9,
+      battery_level: 50,
+      timestamp: new Date(now - 23 * h).toISOString()
+    },
+    {
+      id: "prev_hist_u2_7",
+      entity_id: "device_tracker.member_preview_phone",
+      user_id: 2,
+      latitude: 37.7700,
+      longitude: -122.4470,
+      accuracy: 8,
+      battery_level: 44,
+      timestamp: new Date(now - 26 * h).toISOString()
+    },
+    {
+      id: "prev_hist_u2_8",
+      entity_id: "device_tracker.member_preview_phone",
+      user_id: 2,
+      latitude: 37.7650,
+      longitude: -122.4200,
+      accuracy: 7,
+      battery_level: 58,
+      timestamp: new Date(now - 2 * d - 5 * h).toISOString()
+    },
+    {
+      id: "prev_hist_u2_9",
+      entity_id: "device_tracker.member_preview_phone",
+      user_id: 2,
+      latitude: 37.7800,
+      longitude: -122.4000,
+      accuracy: 6,
+      battery_level: 66,
+      timestamp: new Date(now - 4 * d - 10 * h).toISOString()
+    },
+    {
+      id: "prev_hist_u2_10",
+      entity_id: "device_tracker.member_preview_phone",
+      user_id: 2,
+      latitude: 37.7900,
+      longitude: -122.3950,
+      accuracy: 8,
+      battery_level: 72,
+      timestamp: new Date(now - 6 * d - 12 * h).toISOString()
+    }
+  ];
 }
 
 // Data Store Management (Isolated Preview File Store)
@@ -147,7 +383,7 @@ function loadDB(): YimlyPreviewDatabase {
           last_updated: new Date().toISOString()
         }
       ],
-      location_history: []
+      location_history: getDeterministicPreviewHistory()
     };
     fs.writeFileSync(DATA_FILE, JSON.stringify(initialDB, null, 2));
     return initialDB;
@@ -155,20 +391,31 @@ function loadDB(): YimlyPreviewDatabase {
   try {
     const raw = fs.readFileSync(DATA_FILE, "utf-8");
     const parsed = JSON.parse(raw);
-    return {
+    const existingHistory = Array.isArray(parsed.location_history) && parsed.location_history.length > 0
+      ? parsed.location_history
+      : getDeterministicPreviewHistory();
+
+    const loaded: YimlyPreviewDatabase = {
       users: parsed.users || [],
       circles: parsed.circles || [],
       circle_members: parsed.circle_members || [],
       entity_states: parsed.entity_states || [],
-      location_history: parsed.location_history || []
+      location_history: existingHistory
     };
+
+    // If loaded history was empty or upgraded, persist it
+    if (!parsed.location_history || parsed.location_history.length === 0) {
+      saveDB(loaded);
+    }
+
+    return loaded;
   } catch (err) {
     return {
       users: [],
       circles: [],
       circle_members: [],
       entity_states: [],
-      location_history: []
+      location_history: getDeterministicPreviewHistory()
     };
   }
 }
@@ -343,7 +590,9 @@ app.post("/api/setup/register", (req, res) => {
       id: newUser.id,
       username: newUser.username,
       display_name: newUser.display_name,
-      avatar_color: newUser.avatar_color
+      avatar_color: newUser.avatar_color,
+      map_selected_icon_size: 48,
+      map_unselected_icon_size: 36
     }
   });
 });
@@ -369,6 +618,8 @@ app.post("/api/auth/register", (req, res) => {
     display_name,
     avatar_color: "#E2D9F3",
     map_style: "osm",
+    map_selected_icon_size: 48,
+    map_unselected_icon_size: 36,
     created_at: new Date().toISOString()
   };
 
@@ -401,7 +652,9 @@ app.post("/api/auth/register", (req, res) => {
       display_name: newUser.display_name,
       avatar_color: newUser.avatar_color,
       profile_picture_url: newUser.profile_picture_url || null,
-      map_style: newUser.map_style || "osm"
+      map_style: newUser.map_style || "osm",
+      map_selected_icon_size: newUser.map_selected_icon_size || 48,
+      map_unselected_icon_size: newUser.map_unselected_icon_size || 36
     }
   });
 });
@@ -429,7 +682,9 @@ app.post("/api/auth/login", (req, res) => {
       display_name: found.display_name,
       avatar_color: found.avatar_color,
       profile_picture_url: found.profile_picture_url || null,
-      map_style: found.map_style || "osm"
+      map_style: found.map_style || "osm",
+      map_selected_icon_size: found.map_selected_icon_size || 48,
+      map_unselected_icon_size: found.map_unselected_icon_size || 36
     }
   });
 });
@@ -443,12 +698,14 @@ app.get("/api/auth/me", authenticateToken, (req: AuthRequest, res) => {
     avatar_color: u.avatar_color || "#E2D9F3",
     profile_picture_url: u.profile_picture_url || null,
     map_style: u.map_style || "osm",
+    map_selected_icon_size: u.map_selected_icon_size || 48,
+    map_unselected_icon_size: u.map_unselected_icon_size || 36,
     is_active: true
   });
 });
 
 app.put("/api/auth/profile", authenticateToken, (req: AuthRequest, res) => {
-  const { avatar_color, display_name, map_style } = req.body;
+  const { avatar_color, display_name, map_style, map_selected_icon_size, map_unselected_icon_size } = req.body;
   db = loadDB();
   const userIdx = db.users.findIndex((u) => u.id === req.user!.id);
   if (userIdx !== -1) {
@@ -462,6 +719,14 @@ app.put("/api/auth/profile", authenticateToken, (req: AuthRequest, res) => {
         return res.status(400).json({ detail: "Invalid map_style value" });
       }
     }
+    if (map_selected_icon_size !== undefined && typeof map_selected_icon_size === "number") {
+      const s = Math.max(24, Math.min(72, map_selected_icon_size));
+      db.users[userIdx].map_selected_icon_size = s;
+    }
+    if (map_unselected_icon_size !== undefined && typeof map_unselected_icon_size === "number") {
+      const u = Math.max(24, Math.min(72, map_unselected_icon_size));
+      db.users[userIdx].map_unselected_icon_size = u;
+    }
     saveDB(db);
     const updated = db.users[userIdx];
     res.json({
@@ -471,6 +736,8 @@ app.put("/api/auth/profile", authenticateToken, (req: AuthRequest, res) => {
       avatar_color: updated.avatar_color,
       profile_picture_url: updated.profile_picture_url || null,
       map_style: updated.map_style || "osm",
+      map_selected_icon_size: updated.map_selected_icon_size || 48,
+      map_unselected_icon_size: updated.map_unselected_icon_size || 36,
       is_active: true
     });
   } else {
@@ -610,6 +877,92 @@ app.post("/api/circles/join", authenticateToken, (req: AuthRequest, res) => {
   res.json(circle);
 });
 
+app.post("/api/circles/:id/leave", authenticateToken, (req: AuthRequest, res) => {
+  const circleId = Number(req.params.id);
+  db = loadDB();
+
+  const circle = db.circles.find((c) => c.id === circleId);
+  if (!circle) {
+    return res.status(404).json({ detail: "Circle not found" });
+  }
+
+  const isMember = db.circle_members.some(
+    (m) => m.circle_id === circleId && m.user_id === req.user!.id
+  );
+
+  if (!isMember) {
+    return res.status(400).json({ detail: "You are not a member of this circle" });
+  }
+
+  // Owner protection: Circle owner cannot leave if the circle requires an owner
+  if (circle.owner_id === req.user!.id) {
+    return res.status(400).json({
+      detail: "As the circle owner, you cannot leave this circle. Circle owners cannot leave their own circle."
+    });
+  }
+
+  // Remove membership for this user only
+  db.circle_members = db.circle_members.filter(
+    (m) => !(m.circle_id === circleId && m.user_id === req.user!.id)
+  );
+  saveDB(db);
+
+  res.json({ success: true, message: `Successfully left ${circle.name}` });
+});
+
+// Delete Family Circle (Owner/Admin only)
+app.delete("/api/circles/:id", authenticateToken, (req: AuthRequest, res) => {
+  const circleId = Number(req.params.id);
+  db = loadDB();
+
+  const circle = db.circles.find((c) => c.id === circleId);
+  if (!circle) {
+    return res.status(404).json({ detail: "Family Circle not found" });
+  }
+
+  // Strictly enforce server-side authorization: Only circle owner/admin can delete
+  if (circle.owner_id !== req.user!.id) {
+    return res.status(403).json({
+      detail: "Forbidden: Only the Family Circle owner or administrator can delete this circle."
+    });
+  }
+
+  // Delete ONLY this specific circle and its membership bindings
+  db.circles = db.circles.filter((c) => c.id !== circleId);
+  db.circle_members = db.circle_members.filter((m) => m.circle_id !== circleId);
+  saveDB(db);
+
+  res.json({
+    success: true,
+    message: `Family Circle "${circle.name}" has been permanently deleted.`
+  });
+});
+
+app.post("/api/circles/:id/delete", authenticateToken, (req: AuthRequest, res) => {
+  const circleId = Number(req.params.id);
+  db = loadDB();
+
+  const circle = db.circles.find((c) => c.id === circleId);
+  if (!circle) {
+    return res.status(404).json({ detail: "Family Circle not found" });
+  }
+
+  if (circle.owner_id !== req.user!.id) {
+    return res.status(403).json({
+      detail: "Forbidden: Only the Family Circle owner or administrator can delete this circle."
+    });
+  }
+
+  db.circles = db.circles.filter((c) => c.id !== circleId);
+  db.circle_members = db.circle_members.filter((m) => m.circle_id !== circleId);
+  saveDB(db);
+
+  res.json({
+    success: true,
+    message: `Family Circle "${circle.name}" has been permanently deleted.`
+  });
+});
+
 app.get("/api/circles/:id/members", authenticateToken, (req: AuthRequest, res) => {
   const circleId = Number(req.params.id);
   db = loadDB();
@@ -741,9 +1094,62 @@ app.get("/api/states", authenticateToken, (req: AuthRequest, res) => {
   res.json(userStates);
 });
 
-app.get("/api/history/period", authenticateToken, (req: AuthRequest, res) => {
+app.get(["/api/history/period", "/api/history/period/:timestamp"], authenticateToken, (req: AuthRequest, res) => {
   db = loadDB();
-  const userHistory = db.location_history.filter((h) => h.user_id === req.user!.id);
+  const targetUserId = req.query.user_id ? Number(req.query.user_id) : req.user!.id;
+  const entityId = req.query.filter_entity_id as string | undefined;
+
+  // Verify authorization: current user can view their own history or members in a shared circle
+  if (targetUserId !== req.user!.id) {
+    const myCircleIds = db.circle_members.filter((cm) => cm.user_id === req.user!.id).map((cm) => cm.circle_id);
+    const allowedUserIds = db.circle_members.filter((cm) => myCircleIds.includes(cm.circle_id)).map((cm) => cm.user_id);
+    if (!allowedUserIds.includes(targetUserId)) {
+      return res.status(403).json({ detail: "Not authorized to view this member's location history" });
+    }
+  }
+
+  let userHistory = db.location_history.filter((h) => h.user_id === targetUserId);
+  if (entityId) {
+    userHistory = userHistory.filter((h) => h.entity_id === entityId);
+  }
+
+  const hours = req.query.hours ? Number(req.query.hours) : null;
+  const startDate = req.query.start_date as string | undefined;
+  const endDate = req.query.end_date as string | undefined;
+
+  if (hours) {
+    const cutoff = new Date(Date.now() - hours * 3600 * 1000).toISOString();
+    userHistory = userHistory.filter((h) => h.timestamp >= cutoff);
+  } else {
+    if (startDate) {
+      const startIso = startDate.includes("T") ? startDate : `${startDate}T00:00:00.000Z`;
+      userHistory = userHistory.filter((h) => h.timestamp >= startIso);
+    }
+    if (endDate) {
+      const endIso = endDate.includes("T") ? endDate : `${endDate}T23:59:59.999Z`;
+      userHistory = userHistory.filter((h) => h.timestamp <= endIso);
+    }
+  }
+
+  // If no historical entries recorded yet, generate from real entity state
+  if (userHistory.length === 0) {
+    const activeStates = db.entity_states.filter(
+      (e) => e.user_id === targetUserId && e.domain === "device_tracker" && e.latitude != null && e.longitude != null
+    );
+    userHistory = activeStates.map((st) => ({
+      id: `state_${st.entity_id}`,
+      entity_id: st.entity_id,
+      user_id: st.user_id,
+      latitude: st.latitude!,
+      longitude: st.longitude!,
+      battery_level: st.attributes?.battery_level || 100,
+      accuracy: st.attributes?.gps_accuracy || 0,
+      timestamp: st.last_updated
+    }));
+  }
+
+  userHistory.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
   res.json(userHistory);
 });
 

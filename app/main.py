@@ -58,6 +58,22 @@ async def on_startup() -> None:
             except Exception:
                 # Column likely already exists, ignore
                 pass
+
+            # Dynamically migrate map_selected_icon_size if it doesn't exist
+            try:
+                await conn.execute(text("ALTER TABLE users ADD COLUMN map_selected_icon_size INTEGER DEFAULT 48;"))
+                logger.info("Database migration: Added map_selected_icon_size column to users table.")
+            except Exception:
+                # Column likely already exists, ignore
+                pass
+
+            # Dynamically migrate map_unselected_icon_size if it doesn't exist
+            try:
+                await conn.execute(text("ALTER TABLE users ADD COLUMN map_unselected_icon_size INTEGER DEFAULT 36;"))
+                logger.info("Database migration: Added map_unselected_icon_size column to users table.")
+            except Exception:
+                # Column likely already exists, ignore
+                pass
                 
         logger.info("Database schemas created/verified successfully.")
     except Exception as e:

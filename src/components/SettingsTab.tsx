@@ -1,13 +1,22 @@
 import React, { useEffect, useState, useRef } from "react";
-import { UserInfo } from "../types";
+import { UserInfo, Circle } from "../types";
 import { PWAInstallButton } from "./PWAInstallButton";
+import { CircleSelector } from "./CircleSelector";
 import { MAP_STYLES } from "../lib/mapStyles";
-import { Settings, Smartphone, LogOut, HelpCircle, Map, Check, Upload, Trash2, Camera, RefreshCw, AlertCircle } from "lucide-react";
+import { Settings, Smartphone, LogOut, HelpCircle, Map, Check, Upload, Trash2, Camera, RefreshCw, AlertCircle, Maximize2, Users } from "lucide-react";
 
 interface SettingsTabProps {
   user: UserInfo | null;
   onLogout: () => void;
   onUserUpdate?: (updated: UserInfo) => void;
+  circles?: Circle[];
+  selectedCircle?: Circle | null;
+  onSelectCircle?: (circle: Circle) => void;
+  onCreateCircle?: (name: string) => Promise<void>;
+  onJoinCircle?: (code: string) => Promise<void>;
+  onLeaveCircle?: (circleId: number) => Promise<void>;
+  onDeleteCircle?: (circleId: number) => Promise<void>;
+  circlesLoading?: boolean;
 }
 
 const PASTEL_PALETTE = [
@@ -35,13 +44,28 @@ interface ConnectedDevice {
   lastUpdated: string;
 }
 
-export const SettingsTab: React.FC<SettingsTabProps> = ({ user, onLogout, onUserUpdate }) => {
+export const SettingsTab: React.FC<SettingsTabProps> = ({
+  user,
+  onLogout,
+  onUserUpdate,
+  circles = [],
+  selectedCircle = null,
+  onSelectCircle,
+  onCreateCircle,
+  onJoinCircle,
+  onLeaveCircle,
+  onDeleteCircle,
+  circlesLoading = false
+}) => {
   const [devices, setDevices] = useState<ConnectedDevice[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedColor, setSelectedColor] = useState<string | null>(user?.avatar_color || null);
   const [savingColor, setSavingColor] = useState(false);
   const [selectedMapStyle, setSelectedMapStyle] = useState<string>(user?.map_style || "osm");
   const [savingMapStyle, setSavingMapStyle] = useState(false);
+  const [selectedIconSize, setSelectedIconSize] = useState<number>(user?.map_selected_icon_size || 48);
+  const [unselectedIconSize, setUnselectedIconSize] = useState<number>(user?.map_unselected_icon_size || 36);
+  const [savingIconSizes, setSavingIconSizes] = useState(false);
 
   // Profile Picture Upload States
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -63,7 +87,45 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ user, onLogout, onUser
     if (user?.map_style) {
       setSelectedMapStyle(user.map_style);
     }
+    if (user?.map_selected_icon_size) {
+      setSelectedIconSize(user.map_selected_icon_size);
+    }
+    if (user?.map_unselected_icon_size) {
+      setUnselectedIconSize(user.map_unselected_icon_size);
+    }
   }, [user]);
+
+  const handleUpdateIconSizes = async (newSelected: number, newUnselected: number) => {
+    setSelectedIconSize(newSelected);
+    setUnselectedIconSize(newUnselected);
+    setSavingIconSizes(true);
+    const token = localStorage.getItem("access_token");
+    if (!token) return;
+
+    try {
+      const res = await fetch("/api/auth/profile", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          map_selected_icon_size: newSelected,
+          map_unselected_icon_size: newUnselected
+        })
+      });
+      if (res.ok) {
+        const updatedUser = await res.json();
+        if (onUserUpdate) {
+          onUserUpdate(updatedUser);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to persist map icon size preferences:", err);
+    } finally {
+      setSavingIconSizes(false);
+    }
+  };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     setPictureError(null);
@@ -274,6 +336,33 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ user, onLogout, onUser
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       
+      {/* Family Circle Management Card */}
+      <div className="bg-white p-7 sm:p-8 rounded-3xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.015)] space-y-4">
+        <div className="flex items-center gap-2">
+          <Users className="w-5 h-5 text-indigo-600" />
+          <h2 className="text-base font-bold text-slate-800">Family Circles</h2>
+        </div>
+        <p className="text-xs text-slate-400 font-semibold leading-relaxed">
+          Switch active Family Circles, share your invite code, or create and join circles.
+        </p>
+
+        {onSelectCircle && onCreateCircle && onJoinCircle ? (
+          <div className="pt-1">
+            <CircleSelector
+              user={user}
+              circles={circles}
+              selectedCircle={selectedCircle}
+              onSelectCircle={onSelectCircle}
+              onCreateCircle={onCreateCircle}
+              onJoinCircle={onJoinCircle}
+              onLeaveCircle={onLeaveCircle}
+              onDeleteCircle={onDeleteCircle}
+              loading={circlesLoading}
+            />
+          </div>
+        ) : null}
+      </div>
+
       {/* Profile & Identity Card */}
       <div className="bg-white p-7 sm:p-8 rounded-3xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.015)] space-y-6">
         <div className="flex items-center gap-2">
@@ -498,6 +587,197 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ user, onLogout, onUser
               </button>
             );
           })}
+        </div>
+      </div>
+
+      {/* MAP LOCATION ICONS SIZE SETTING CARD */}
+      <div className="bg-white p-7 sm:p-8 rounded-3xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.015)] space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Maximize2 className="w-5 h-5 text-indigo-600" />
+            <h2 className="text-base font-bold text-slate-800">Map Location Icons</h2>
+          </div>
+          {savingIconSizes && (
+            <span className="text-[10px] font-bold text-indigo-600 animate-pulse">
+              Saving size preferences...
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-slate-400 font-semibold leading-relaxed">
+          Independently customize the pixel size of selected and unselected member location icons on the map. Changes are saved server-side and update the map immediately.
+        </p>
+
+        {/* Sliders Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-1">
+          {/* Selected Member Icon Slider */}
+          <div className="p-5 rounded-2xl bg-slate-50/60 border border-slate-100/80 space-y-3">
+            <div className="flex items-center justify-between">
+              <label htmlFor="selected-icon-slider" className="text-xs font-bold text-slate-700">
+                Selected Member Icon
+              </label>
+              <span className="text-xs font-extrabold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-600 border border-indigo-100/50">
+                {selectedIconSize} px
+              </span>
+            </div>
+            
+            <input
+              id="selected-icon-slider"
+              type="range"
+              min="24"
+              max="72"
+              step="1"
+              value={selectedIconSize}
+              onChange={(e) => handleUpdateIconSizes(Number(e.target.value), unselectedIconSize)}
+              className="w-full accent-indigo-600 h-2 bg-slate-200/80 rounded-lg appearance-none cursor-pointer"
+            />
+            <div className="flex justify-between text-[10px] text-slate-400 font-bold">
+              <span>Small (24px)</span>
+              <span>Default (48px)</span>
+              <span>Large (72px)</span>
+            </div>
+          </div>
+
+          {/* Unselected Member Icon Slider */}
+          <div className="p-5 rounded-2xl bg-slate-50/60 border border-slate-100/80 space-y-3">
+            <div className="flex items-center justify-between">
+              <label htmlFor="unselected-icon-slider" className="text-xs font-bold text-slate-700">
+                Unselected Member Icon
+              </label>
+              <span className="text-xs font-extrabold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200/60">
+                {unselectedIconSize} px
+              </span>
+            </div>
+            
+            <input
+              id="unselected-icon-slider"
+              type="range"
+              min="24"
+              max="72"
+              step="1"
+              value={unselectedIconSize}
+              onChange={(e) => handleUpdateIconSizes(selectedIconSize, Number(e.target.value))}
+              className="w-full accent-slate-700 h-2 bg-slate-200/80 rounded-lg appearance-none cursor-pointer"
+            />
+            <div className="flex justify-between text-[10px] text-slate-400 font-bold">
+              <span>Small (24px)</span>
+              <span>Default (36px)</span>
+              <span>Large (72px)</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Live Visual Preview */}
+        <div className="border-t border-slate-100 pt-5 space-y-3">
+          <span className="text-xs font-bold text-slate-700 block">Live Map Icon Preview</span>
+          <div className="p-6 rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100/70 border border-slate-200/60 flex flex-wrap items-center justify-around gap-6">
+            
+            {/* Selected Marker Preview */}
+            <div className="flex flex-col items-center gap-2">
+              <div 
+                className="relative flex items-center justify-center transition-all duration-200"
+                style={{ width: `${Math.round(selectedIconSize * 1.25)}px`, height: `${Math.round(selectedIconSize * 1.25)}px` }}
+              >
+                <div 
+                  className="absolute rounded-full transition-all duration-300"
+                  style={{ 
+                    width: `${Math.round(selectedIconSize * 1.25)}px`, 
+                    height: `${Math.round(selectedIconSize * 1.25)}px`, 
+                    backgroundColor: selectedColor || "#4f46e5", 
+                    opacity: 0.35, 
+                    transform: 'scale(1.2)' 
+                  }}
+                />
+                <div 
+                  className="relative rounded-full border-2 sm:border-[3px] border-white shadow-lg flex items-center justify-center font-extrabold text-white overflow-hidden transition-all duration-200"
+                  style={{ 
+                    width: `${selectedIconSize}px`, 
+                    height: `${selectedIconSize}px`, 
+                    backgroundColor: selectedColor || "#4f46e5",
+                    fontSize: `${Math.max(10, Math.floor(selectedIconSize * 0.38))}px`
+                  }}
+                >
+                  {user?.profile_picture_url ? (
+                    <img 
+                      src={user.profile_picture_url} 
+                      alt={user.display_name} 
+                      className="w-full h-full object-cover rounded-full"
+                    />
+                  ) : (
+                    (user?.display_name || "U").charAt(0).toUpperCase()
+                  )}
+                </div>
+                <div 
+                  className="absolute bottom-[-2px] w-0 h-0 border-solid"
+                  style={{
+                    borderLeftWidth: `${Math.max(4, Math.round(selectedIconSize * 0.15))}px`,
+                    borderLeftColor: 'transparent',
+                    borderRightWidth: `${Math.max(4, Math.round(selectedIconSize * 0.15))}px`,
+                    borderRightColor: 'transparent',
+                    borderTopWidth: `${Math.max(4, Math.round(selectedIconSize * 0.15))}px`,
+                    borderTopColor: 'white',
+                    filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.15))'
+                  }}
+                />
+              </div>
+              <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
+                Selected ({selectedIconSize}px)
+              </span>
+            </div>
+
+            {/* Unselected Marker Preview */}
+            <div className="flex flex-col items-center gap-2">
+              <div 
+                className="relative flex items-center justify-center transition-all duration-200"
+                style={{ width: `${Math.round(unselectedIconSize * 1.25)}px`, height: `${Math.round(unselectedIconSize * 1.25)}px` }}
+              >
+                <div 
+                  className="absolute rounded-full transition-all duration-300"
+                  style={{ 
+                    width: `${Math.round(unselectedIconSize * 1.25)}px`, 
+                    height: `${Math.round(unselectedIconSize * 1.25)}px`, 
+                    backgroundColor: selectedColor || "#4f46e5", 
+                    opacity: 0.2, 
+                    transform: 'scale(1.0)' 
+                  }}
+                />
+                <div 
+                  className="relative rounded-full border-2 sm:border-[3px] border-white shadow-md flex items-center justify-center font-extrabold text-white overflow-hidden transition-all duration-200"
+                  style={{ 
+                    width: `${unselectedIconSize}px`, 
+                    height: `${unselectedIconSize}px`, 
+                    backgroundColor: selectedColor || "#4f46e5",
+                    fontSize: `${Math.max(10, Math.floor(unselectedIconSize * 0.38))}px`
+                  }}
+                >
+                  {user?.profile_picture_url ? (
+                    <img 
+                      src={user.profile_picture_url} 
+                      alt={user.display_name} 
+                      className="w-full h-full object-cover rounded-full"
+                    />
+                  ) : (
+                    (user?.display_name || "U").charAt(0).toUpperCase()
+                  )}
+                </div>
+                <div 
+                  className="absolute bottom-[-2px] w-0 h-0 border-solid"
+                  style={{
+                    borderLeftWidth: `${Math.max(4, Math.round(unselectedIconSize * 0.15))}px`,
+                    borderLeftColor: 'transparent',
+                    borderRightWidth: `${Math.max(4, Math.round(unselectedIconSize * 0.15))}px`,
+                    borderRightColor: 'transparent',
+                    borderTopWidth: `${Math.max(4, Math.round(unselectedIconSize * 0.15))}px`,
+                    borderTopColor: 'white',
+                    filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.15))'
+                  }}
+                />
+              </div>
+              <span className="text-[11px] font-bold text-slate-600 bg-white px-2 py-0.5 rounded-full border border-slate-200">
+                Unselected ({unselectedIconSize}px)
+              </span>
+            </div>
+
+          </div>
         </div>
       </div>
 
