@@ -442,14 +442,22 @@ export default function App() {
             {/* Profile Avatar Pill */}
             <div 
               onClick={() => setActiveTab("settings")}
-              className="w-8 h-8 rounded-full text-white font-extrabold text-xs flex items-center justify-center cursor-pointer shadow-sm transition hover:scale-105"
+              className="w-8 h-8 rounded-full text-white font-extrabold text-xs flex items-center justify-center cursor-pointer shadow-sm transition hover:scale-105 overflow-hidden shrink-0"
               style={{
                 backgroundColor: user?.avatar_color || "#4f46e5",
                 boxShadow: `0 0 0 2px white, 0 2px 8px ${user?.avatar_color || '#4f46e5'}60`
               }}
               title={`${user?.display_name} (Settings)`}
             >
-              {user?.display_name?.charAt(0).toUpperCase()}
+              {user?.profile_picture_url ? (
+                <img
+                  src={user.profile_picture_url}
+                  alt={user.display_name}
+                  className="w-full h-full object-cover rounded-full"
+                />
+              ) : (
+                user?.display_name?.charAt(0).toUpperCase()
+              )}
             </div>
           </nav>
 
@@ -551,6 +559,9 @@ export default function App() {
                     onUserUpdate={(updated) => {
                       setUser(updated);
                       localStorage.setItem("user_info", JSON.stringify(updated));
+                      if (selectedCircle) {
+                        fetchCircleMembers(selectedCircle.id, true);
+                      }
                     }}
                   />
                 )}

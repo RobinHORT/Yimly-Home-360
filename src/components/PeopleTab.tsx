@@ -43,14 +43,22 @@ export const PeopleTab: React.FC<PeopleTabProps> = ({ members, loading }) => {
                 <div>
                   <div className="flex items-center gap-3 mb-4">
                     <div 
-                      className="h-10 w-10 text-white font-black text-sm rounded-full flex items-center justify-center select-none shadow-sm transition-all duration-300"
+                      className="h-10 w-10 text-white font-black text-sm rounded-full flex items-center justify-center select-none shadow-sm transition-all duration-300 overflow-hidden shrink-0"
                       style={{ 
                         backgroundColor: member.avatar_color || "#4f46e5", 
                         border: member.avatar_color ? "2px solid white" : "none",
                         boxShadow: member.avatar_color ? `0 0 0 2px ${member.avatar_color}` : "none" 
                       }}
                     >
-                      {member.display_name.charAt(0).toUpperCase()}
+                      {member.profile_picture_url ? (
+                        <img
+                          src={member.profile_picture_url}
+                          alt={member.display_name}
+                          className="w-full h-full object-cover rounded-full"
+                        />
+                      ) : (
+                        member.display_name.charAt(0).toUpperCase()
+                      )}
                     </div>
                     <div>
                       <p className="text-sm font-bold text-slate-800">{member.display_name}</p>

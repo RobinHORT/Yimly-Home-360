@@ -1,6 +1,8 @@
+import os
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
-from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, status, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select, func
@@ -258,6 +260,7 @@ async def api_login(login_in: LoginRequest, db: AsyncSession = Depends(get_db)):
             "username": user.username,
             "display_name": user.display_name,
             "avatar_color": user.avatar_color,
+            "profile_picture_url": user.profile_picture_url,
             "map_style": user.map_style or "osm"
         }
     }
@@ -293,5 +296,92 @@ async def update_profile(
     db.add(current_user)
     await db.commit()
     await db.refresh(current_user)
+    return current_user
+
+
+@router.post("/api/auth/profile/picture", response_model=UserResponse)
+@router.post("/api/auth/profile-picture", response_model=UserResponse)
+async def upload_profile_picture(
+    file: UploadFile = File(...),
+    current_user: User = Depends(require_authenticated_user),
+    db: AsyncSession = Depends(get_db)
+):
+    allowed_types = ["image/jpeg", "image/jpg", "image/png", "image/webp"]
+    allowed_exts = [".jpg", ".jpeg", ".png", ".webp"]
+    
+    filename_lower = file.filename.lower() if file.filename else ""
+    ext = os.path.splitext(filename_lower)[1]
+    
+    if ext not in allowed_exts or (file.content_type and file.content_type.lower() not in allowed_types):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid file type. Only JPEG, PNG, and WebP images are allowed."
+        )
+
+    contents = await file.read()
+    if len(contents) > 5 * 1024 * 1024: # 5MB limit
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File size exceeds maximum limit of 5MB."
+        )
+
+    # Basic magic bytes check
+    is_valid_magic = (
+        contents.startswith(b"\xff\xd8\xff") or # JPEG
+        contents.startswith(b"\x89PNG\r\n\x1a\n") or # PNG
+        (contents.startswith(b"RIFF") and b"WEBP" in contents[:16]) # WebP
+    )
+    if not is_valid_magic:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Corrupted or invalid image file content."
+        )
+
+    # Remove existing photo if present
+    if current_user.profile_picture_url:
+        old_file_name = os.path.basename(current_user.profile_picture_url)
+        old_file_path = os.path.join(os.getcwd(), "uploads", "profile_pictures", old_file_name)
+        if os.path.exists(old_file_path):
+            try:
+                os.remove(old_file_path)
+            except Exception as e:
+                logger.warning(f"Failed to delete old profile picture {old_file_path}: {e}")
+
+    # Generate safe server-side filename
+    safe_ext = ext if ext in allowed_exts else ".jpg"
+    unique_filename = f"user_{current_user.id}_{int(datetime.now(timezone.utc).timestamp())}_{uuid.uuid4().hex[:8]}{safe_ext}"
+    upload_dir = os.path.join(os.getcwd(), "uploads", "profile_pictures")
+    os.makedirs(upload_dir, exist_ok=True)
+    target_path = os.path.join(upload_dir, unique_filename)
+
+    with open(target_path, "wb") as f:
+        f.write(contents)
+
+    picture_url = f"/uploads/profile_pictures/{unique_filename}"
+    current_user.profile_picture_url = picture_url
+    db.add(current_user)
+    await db.commit()
+    await db.refresh(current_user)
+    return current_user
+
+
+@router.delete("/api/auth/profile/picture", response_model=UserResponse)
+@router.delete("/api/auth/profile-picture", response_model=UserResponse)
+async def delete_profile_picture(
+    current_user: User = Depends(require_authenticated_user),
+    db: AsyncSession = Depends(get_db)
+):
+    if current_user.profile_picture_url:
+        old_file_name = os.path.basename(current_user.profile_picture_url)
+        old_file_path = os.path.join(os.getcwd(), "uploads", "profile_pictures", old_file_name)
+        if os.path.exists(old_file_path):
+            try:
+                os.remove(old_file_path)
+            except Exception as e:
+                logger.warning(f"Failed to delete profile picture {old_file_path}: {e}")
+        current_user.profile_picture_url = None
+        db.add(current_user)
+        await db.commit()
+        await db.refresh(current_user)
     return current_user
 

@@ -39,6 +39,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({ members, onRefresh, 
       style: initialStyleOption.style,
       center: [0, 20],
       zoom: 2,
+      trackResize: true,
       attributionControl: { compact: false }
     });
 
@@ -48,7 +49,23 @@ export const MapComponent: React.FC<MapComponentProps> = ({ members, onRefresh, 
 
     mapRef.current = map;
 
+    // Set up ResizeObserver to observe the container element
+    const resizeObserver = new ResizeObserver(() => {
+      if (mapRef.current) {
+        mapRef.current.resize();
+      }
+    });
+
+    resizeObserver.observe(mapContainerRef.current);
+
+    // Initial resize trigger after DOM layout settlement
+    const animFrame = requestAnimationFrame(() => {
+      map.resize();
+    });
+
     return () => {
+      cancelAnimationFrame(animFrame);
+      resizeObserver.disconnect();
       map.remove();
       mapRef.current = null;
       markersRef.current = {};
@@ -65,6 +82,9 @@ export const MapComponent: React.FC<MapComponentProps> = ({ members, onRefresh, 
 
     currentStyleIdRef.current = currentStyleOption.id;
     map.setStyle(currentStyleOption.style, { diff: false });
+    map.once("styledata", () => {
+      map.resize();
+    });
   }, [mapStyle]);
 
   // Custom Map Actions
@@ -167,11 +187,15 @@ export const MapComponent: React.FC<MapComponentProps> = ({ members, onRefresh, 
           </div>
         `;
 
+        const pictureImgHtml = member.profile_picture_url
+          ? `<img src="${member.profile_picture_url}" alt="${member.display_name}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" />`
+          : initials;
+
         const iconHtml = `
           <div style="position: relative; display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; cursor: pointer;">
             <div style="position: absolute; width: 48px; height: 48px; background-color: ${memberColor}; opacity: ${isSelected ? '0.35' : '0.2'}; border-radius: 50%; transform: scale(${isSelected ? '1.25' : '1.05'}); transition: all 0.3s ease;"></div>
-            <div style="position: relative; width: 38px; height: 38px; background-color: ${memberColor}; border: 3px solid white; border-radius: 50%; box-shadow: 0 8px 20px rgba(0,0,0,0.18); display: flex; align-items: center; justify-content: center; font-family: system-ui, -apple-system, sans-serif; font-size: 14px; font-weight: 800; color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.25);">
-              ${initials}
+            <div style="position: relative; width: 38px; height: 38px; background-color: ${memberColor}; border: 3px solid white; border-radius: 50%; box-shadow: 0 8px 20px rgba(0,0,0,0.18); display: flex; align-items: center; justify-content: center; font-family: system-ui, -apple-system, sans-serif; font-size: 14px; font-weight: 800; color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.25); overflow: hidden;">
+              ${pictureImgHtml}
             </div>
             <div style="position: absolute; bottom: -2px; width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 6px solid white; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.15));"></div>
           </div>
@@ -246,40 +270,41 @@ export const MapComponent: React.FC<MapComponentProps> = ({ members, onRefresh, 
               <span>All ({membersWithLocation.length})</span>
             </button>
 
-            {/* Member Pills with Saved Avatar Colors */}
+            {/* Member Pills with Saved Avatar Colors (Icon-Only) */}
             {membersWithLocation.map((member) => {
               const isSelected = selectedMemberId === member.id;
-              const primaryDev = member.devices?.[0];
               const memberColor = member.avatar_color || "#4f46e5";
 
               return (
                 <button
                   key={member.id}
                   onClick={() => handleFocusMember(member)}
-                  className={`flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-bold transition shrink-0 cursor-pointer border ${
+                  title={member.display_name}
+                  aria-label={member.display_name}
+                  className={`relative p-0.5 rounded-full transition shrink-0 cursor-pointer border ${
                     isSelected
-                      ? "bg-white text-slate-900 shadow-sm ring-2"
-                      : "bg-white/60 text-slate-700 hover:bg-white/90 border-slate-100"
+                      ? "bg-white text-slate-900 shadow-md scale-105"
+                      : "bg-white/60 text-slate-700 hover:bg-white/90 hover:scale-105 border-slate-100"
                   }`}
                   style={{
                     borderColor: isSelected ? memberColor : "rgba(226, 232, 240, 0.8)",
-                    boxShadow: isSelected ? `0 0 0 2px ${memberColor}` : "none"
+                    boxShadow: isSelected ? `0 0 0 2.5px ${memberColor}` : "none"
                   }}
                 >
                   <div
-                    className="w-6 h-6 rounded-full text-white font-extrabold text-[11px] flex items-center justify-center shadow-sm"
+                    className="w-7 h-7 rounded-full text-white font-extrabold text-xs flex items-center justify-center shadow-sm overflow-hidden shrink-0"
                     style={{ backgroundColor: memberColor }}
                   >
-                    {member.display_name.charAt(0).toUpperCase()}
+                    {member.profile_picture_url ? (
+                      <img
+                        src={member.profile_picture_url}
+                        alt={member.display_name}
+                        className="w-full h-full object-cover rounded-full"
+                      />
+                    ) : (
+                      member.display_name.charAt(0).toUpperCase()
+                    )}
                   </div>
-
-                  <span className="truncate max-w-[90px]">{member.display_name}</span>
-
-                  {primaryDev?.battery !== undefined && primaryDev?.battery !== null && (
-                    <span className="text-[10px] text-slate-400 font-semibold">
-                      {primaryDev.battery}%
-                    </span>
-                  )}
                 </button>
               );
             })}
@@ -333,13 +358,21 @@ export const MapComponent: React.FC<MapComponentProps> = ({ members, onRefresh, 
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
               <div
-                className="w-11 h-11 rounded-2xl text-white font-extrabold text-base flex items-center justify-center shadow-sm"
+                className="w-11 h-11 rounded-2xl text-white font-extrabold text-base flex items-center justify-center shadow-sm overflow-hidden shrink-0"
                 style={{
                   backgroundColor: selectedMember.avatar_color || "#4f46e5",
                   boxShadow: `0 4px 14px ${selectedMember.avatar_color || '#4f46e5'}40`
                 }}
               >
-                {selectedMember.display_name.charAt(0).toUpperCase()}
+                {selectedMember.profile_picture_url ? (
+                  <img
+                    src={selectedMember.profile_picture_url}
+                    alt={selectedMember.display_name}
+                    className="w-full h-full object-cover rounded-2xl"
+                  />
+                ) : (
+                  selectedMember.display_name.charAt(0).toUpperCase()
+                )}
               </div>
               <div>
                 <h3 className="text-sm font-black text-slate-800">{selectedMember.display_name}</h3>

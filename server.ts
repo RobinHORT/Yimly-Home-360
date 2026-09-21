@@ -6,6 +6,7 @@ import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import cors from "cors";
+import multer from "multer";
 import { WebSocketServer, WebSocket } from "ws";
 import { createServer as createViteServer } from "vite";
 
@@ -37,6 +38,7 @@ export interface UserData {
   password_hash: string;
   display_name: string;
   avatar_color?: string | null;
+  profile_picture_url?: string | null;
   map_style?: string | null;
   created_at: string;
 }
@@ -180,6 +182,43 @@ let db = loadDB();
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+const uploadsDir = path.join(process.cwd(), "uploads");
+const profilePicsDir = path.join(uploadsDir, "profile_pictures");
+if (!fs.existsSync(profilePicsDir)) {
+  fs.mkdirSync(profilePicsDir, { recursive: true });
+}
+app.use("/uploads", express.static(uploadsDir));
+
+const uploadStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    if (!fs.existsSync(profilePicsDir)) {
+      fs.mkdirSync(profilePicsDir, { recursive: true });
+    }
+    cb(null, profilePicsDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const safeExt = [".jpg", ".jpeg", ".png", ".webp"].includes(ext) ? ext : ".jpg";
+    const uniqueName = `user_${(req as any).user?.id || "anon"}_${Date.now()}_${crypto.randomBytes(4).toString("hex")}${safeExt}`;
+    cb(null, uniqueName);
+  }
+});
+
+const upload = multer({
+  storage: uploadStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: (_req, file, cb) => {
+    const allowedMime = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    const ext = path.extname(file.originalname).toLowerCase();
+    const allowedExts = [".jpg", ".jpeg", ".png", ".webp"];
+    if (allowedMime.includes(file.mimetype.toLowerCase()) && allowedExts.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Invalid file type. Only JPEG, PNG, and WebP images are allowed."));
+    }
+  }
+});
 
 const server = http.createServer(app);
 
@@ -361,6 +400,7 @@ app.post("/api/auth/register", (req, res) => {
       username: newUser.username,
       display_name: newUser.display_name,
       avatar_color: newUser.avatar_color,
+      profile_picture_url: newUser.profile_picture_url || null,
       map_style: newUser.map_style || "osm"
     }
   });
@@ -388,6 +428,7 @@ app.post("/api/auth/login", (req, res) => {
       username: found.username,
       display_name: found.display_name,
       avatar_color: found.avatar_color,
+      profile_picture_url: found.profile_picture_url || null,
       map_style: found.map_style || "osm"
     }
   });
@@ -400,6 +441,7 @@ app.get("/api/auth/me", authenticateToken, (req: AuthRequest, res) => {
     username: u.username,
     display_name: u.display_name,
     avatar_color: u.avatar_color || "#E2D9F3",
+    profile_picture_url: u.profile_picture_url || null,
     map_style: u.map_style || "osm",
     is_active: true
   });
@@ -427,6 +469,83 @@ app.put("/api/auth/profile", authenticateToken, (req: AuthRequest, res) => {
       username: updated.username,
       display_name: updated.display_name,
       avatar_color: updated.avatar_color,
+      profile_picture_url: updated.profile_picture_url || null,
+      map_style: updated.map_style || "osm",
+      is_active: true
+    });
+  } else {
+    res.status(404).json({ detail: "User not found" });
+  }
+});
+
+const handleUpload = (req: AuthRequest, res: Response, next: NextFunction) => {
+  upload.single("file")(req, res, (err: any) => {
+    if (err) {
+      if (err instanceof multer.MulterError) {
+        if (err.code === "LIMIT_FILE_SIZE") {
+          return res.status(400).json({ detail: "File size exceeds maximum limit of 5MB." });
+        }
+        return res.status(400).json({ detail: err.message });
+      }
+      return res.status(400).json({ detail: err.message || "File upload failed." });
+    }
+    next();
+  });
+};
+
+app.post(["/api/auth/profile/picture", "/api/auth/profile-picture"], authenticateToken, handleUpload, (req: AuthRequest, res: Response) => {
+  if (!req.file) {
+    return res.status(400).json({ detail: "No image file provided." });
+  }
+  db = loadDB();
+  const userIdx = db.users.findIndex((u) => u.id === req.user!.id);
+  if (userIdx === -1) {
+    return res.status(404).json({ detail: "User not found" });
+  }
+  const user = db.users[userIdx];
+  if (user.profile_picture_url) {
+    const oldFileName = path.basename(user.profile_picture_url);
+    const oldFilePath = path.join(process.cwd(), "uploads", "profile_pictures", oldFileName);
+    if (fs.existsSync(oldFilePath)) {
+      try { fs.unlinkSync(oldFilePath); } catch (e) {}
+    }
+  }
+  const pictureUrl = `/uploads/profile_pictures/${req.file.filename}`;
+  db.users[userIdx].profile_picture_url = pictureUrl;
+  saveDB(db);
+  const updated = db.users[userIdx];
+  res.json({
+    id: updated.id,
+    username: updated.username,
+    display_name: updated.display_name,
+    avatar_color: updated.avatar_color,
+    profile_picture_url: updated.profile_picture_url,
+    map_style: updated.map_style || "osm",
+    is_active: true
+  });
+});
+
+app.delete(["/api/auth/profile/picture", "/api/auth/profile-picture"], authenticateToken, (req: AuthRequest, res: Response) => {
+  db = loadDB();
+  const userIdx = db.users.findIndex((u) => u.id === req.user!.id);
+  if (userIdx !== -1) {
+    const user = db.users[userIdx];
+    if (user.profile_picture_url) {
+      const oldFileName = path.basename(user.profile_picture_url);
+      const oldFilePath = path.join(process.cwd(), "uploads", "profile_pictures", oldFileName);
+      if (fs.existsSync(oldFilePath)) {
+        try { fs.unlinkSync(oldFilePath); } catch (e) {}
+      }
+      db.users[userIdx].profile_picture_url = null;
+      saveDB(db);
+    }
+    const updated = db.users[userIdx];
+    res.json({
+      id: updated.id,
+      username: updated.username,
+      display_name: updated.display_name,
+      avatar_color: updated.avatar_color,
+      profile_picture_url: null,
       map_style: updated.map_style || "osm",
       is_active: true
     });
@@ -533,6 +652,7 @@ app.get("/api/circles/:id/members", authenticateToken, (req: AuthRequest, res) =
         username: member.username,
         display_name: member.display_name,
         avatar_color: member.avatar_color || "#E2D9F3",
+        profile_picture_url: member.profile_picture_url || null,
         devices // Returns [] if no real telemetry has been received from the Companion App
       };
     });

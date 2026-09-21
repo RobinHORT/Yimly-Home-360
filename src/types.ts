@@ -3,6 +3,7 @@ export interface UserInfo {
   username: string;
   display_name: string;
   avatar_color?: string | null;
+  profile_picture_url?: string | null;
   map_style?: string | null;
 }
 
@@ -21,6 +22,7 @@ export interface CircleMember {
   username: string;
   display_name: string;
   avatar_color?: string | null;
+  profile_picture_url?: string | null;
   devices: MemberDeviceLocation[];
 }
 

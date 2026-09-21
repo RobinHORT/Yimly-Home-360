@@ -160,6 +160,7 @@ async def list_circle_members(
             username=member.username,
             display_name=member.display_name,
             avatar_color=member.avatar_color,
+            profile_picture_url=member.profile_picture_url,
             devices=devices_loc
         ))
 

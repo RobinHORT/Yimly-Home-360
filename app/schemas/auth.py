@@ -11,6 +11,7 @@ class UserResponse(BaseModel):
     username: str
     display_name: str
     avatar_color: Optional[str] = None
+    profile_picture_url: Optional[str] = None
     map_style: Optional[str] = "osm"
     is_active: bool
 

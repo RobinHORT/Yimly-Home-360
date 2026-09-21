@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { UserInfo } from "../types";
 import { PWAInstallButton } from "./PWAInstallButton";
 import { MAP_STYLES } from "../lib/mapStyles";
-import { Settings, Smartphone, LogOut, HelpCircle, Map, Check } from "lucide-react";
+import { Settings, Smartphone, LogOut, HelpCircle, Map, Check, Upload, Trash2, Camera, RefreshCw, AlertCircle } from "lucide-react";
 
 interface SettingsTabProps {
   user: UserInfo | null;
@@ -43,6 +43,15 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ user, onLogout, onUser
   const [selectedMapStyle, setSelectedMapStyle] = useState<string>(user?.map_style || "osm");
   const [savingMapStyle, setSavingMapStyle] = useState(false);
 
+  // Profile Picture Upload States
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [uploadingPicture, setUploadingPicture] = useState(false);
+  const [deletingPicture, setDeletingPicture] = useState(false);
+  const [pictureError, setPictureError] = useState<string | null>(null);
+  const [pictureSuccess, setPictureSuccess] = useState<string | null>(null);
+
   useEffect(() => {
     fetchDevices();
   }, []);
@@ -55,6 +64,124 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ user, onLogout, onUser
       setSelectedMapStyle(user.map_style);
     }
   }, [user]);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPictureError(null);
+    setPictureSuccess(null);
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate type
+    const validTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    if (!validTypes.includes(file.type.toLowerCase())) {
+      setPictureError("Unsupported file format. Please select a JPEG, PNG, or WebP photo.");
+      return;
+    }
+
+    // Validate size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setPictureError("Image file size exceeds maximum limit of 5MB.");
+      return;
+    }
+
+    setSelectedFile(file);
+    const objectUrl = URL.createObjectURL(file);
+    setPreviewUrl(objectUrl);
+  };
+
+  const handleCancelPreview = () => {
+    setSelectedFile(null);
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+    setPictureError(null);
+  };
+
+  const handleUploadPicture = async () => {
+    if (!selectedFile) return;
+
+    setUploadingPicture(true);
+    setPictureError(null);
+    setPictureSuccess(null);
+
+    const token = localStorage.getItem("access_token");
+    if (!token) {
+      setPictureError("Authentication required.");
+      setUploadingPicture(false);
+      return;
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+
+      const res = await fetch("/api/auth/profile/picture", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      if (res.ok) {
+        const updatedUser = await res.json();
+        setPictureSuccess("Profile picture updated successfully!");
+        handleCancelPreview();
+        if (onUserUpdate) {
+          onUserUpdate(updatedUser);
+        }
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        setPictureError(errorData.detail || "Failed to upload profile picture.");
+      }
+    } catch (err) {
+      setPictureError("Network error uploading profile picture.");
+    } finally {
+      setUploadingPicture(false);
+    }
+  };
+
+  const handleRemovePicture = async () => {
+    setDeletingPicture(true);
+    setPictureError(null);
+    setPictureSuccess(null);
+
+    const token = localStorage.getItem("access_token");
+    if (!token) {
+      setPictureError("Authentication required.");
+      setDeletingPicture(false);
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/auth/profile/picture", {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (res.ok) {
+        const updatedUser = await res.json();
+        setPictureSuccess("Profile picture removed. Restored avatar initial.");
+        handleCancelPreview();
+        if (onUserUpdate) {
+          onUserUpdate(updatedUser);
+        }
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        setPictureError(errorData.detail || "Failed to remove profile picture.");
+      }
+    } catch (err) {
+      setPictureError("Network error removing profile picture.");
+    } finally {
+      setDeletingPicture(false);
+    }
+  };
 
   const handleSelectMapStyle = async (styleId: string) => {
     setSelectedMapStyle(styleId);
@@ -125,7 +252,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ user, onLogout, onUser
       });
       if (res.ok) {
         const data = await res.json();
-        // Filter elements starting with 'device_tracker.'
         const trackerDevices = data
           .filter((entity: any) => entity.entity_id.startsWith("device_tracker."))
           .map((entity: any) => ({
@@ -143,48 +269,156 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ user, onLogout, onUser
     }
   };
 
-  // Dynamically extract server origin URL for connection setup instruction
   const serverOrigin = window.location.origin;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       
       {/* Profile & Identity Card */}
-      <div className="bg-white p-7 sm:p-8 rounded-3xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.015)] space-y-4">
+      <div className="bg-white p-7 sm:p-8 rounded-3xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.015)] space-y-6">
         <div className="flex items-center gap-2">
           <Settings className="w-5 h-5 text-indigo-600" />
           <h2 className="text-base font-bold text-slate-800">Account Settings</h2>
         </div>
 
-        <div className="p-5 rounded-2xl bg-slate-50/50 border border-slate-100/60 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        {/* Profile Info Summary Header */}
+        <div className="p-5 rounded-2xl bg-slate-50/50 border border-slate-100/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
             <div 
-              className="h-11 w-11 text-white font-extrabold text-base rounded-full flex items-center justify-center select-none shadow-sm transition-all duration-300"
+              className="h-16 w-16 text-white font-extrabold text-xl rounded-full flex items-center justify-center select-none shadow-sm transition-all duration-300 relative overflow-hidden shrink-0"
               style={{ 
                 backgroundColor: selectedColor || "#4f46e5", 
-                border: selectedColor ? "3px solid white" : "none",
-                boxShadow: selectedColor ? `0 0 0 3px ${selectedColor}` : "none" 
+                border: "3px solid white",
+                boxShadow: `0 0 0 3px ${selectedColor || "#4f46e5"}` 
               }}
             >
-              {user?.display_name ? user.display_name.charAt(0).toUpperCase() : "U"}
+              {previewUrl || user?.profile_picture_url ? (
+                <img
+                  src={previewUrl || user?.profile_picture_url || ""}
+                  alt={user?.display_name || "Profile"}
+                  className="w-full h-full object-cover rounded-full"
+                />
+              ) : (
+                user?.display_name ? user.display_name.charAt(0).toUpperCase() : "U"
+              )}
             </div>
             <div>
-              <p className="text-sm font-bold text-slate-800">{user?.display_name}</p>
-              <p className="text-[10px] text-slate-400 font-bold mt-0.5">Username: {user?.username}</p>
+              <p className="text-base font-bold text-slate-800">{user?.display_name}</p>
+              <p className="text-xs text-slate-400 font-bold mt-0.5">Username: {user?.username}</p>
+              {user?.profile_picture_url && !previewUrl && (
+                <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 font-bold mt-1">
+                  <Check className="w-3 h-3" /> Photo Saved
+                </span>
+              )}
             </div>
           </div>
-          <div className="text-right">
-            <span className="inline-flex items-center rounded-lg bg-indigo-50 px-2.5 py-1 text-[9px] font-extrabold text-indigo-700 ring-1 ring-inset ring-indigo-700/10 uppercase tracking-wider">
+          <div>
+            <span className="inline-flex items-center rounded-lg bg-indigo-50 px-3 py-1 text-[10px] font-extrabold text-indigo-700 ring-1 ring-inset ring-indigo-700/10 uppercase tracking-wider">
               Administrator
             </span>
           </div>
         </div>
 
-        {/* Avatar Customize Panel */}
-        <div className="border-t border-slate-100/80 pt-6 mt-4 space-y-4">
+        {/* PROFILE PICTURE MANAGEMENT SECTION */}
+        <div className="border-t border-slate-100/80 pt-6 space-y-4">
           <div>
-            <h3 className="text-xs font-bold text-slate-700">Customize Avatar Theme</h3>
-            <p className="text-[10px] text-slate-400 font-bold mt-0.5">Select a pastel theme to identify your profile across devices.</p>
+            <h3 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+              <Camera className="w-4 h-4 text-indigo-600" />
+              Profile Photo
+            </h3>
+            <p className="text-[11px] text-slate-400 font-semibold mt-0.5 leading-relaxed">
+              Upload a profile picture to represent yourself on the live map and Family Circles. Photos are securely stored on the server.
+            </p>
+          </div>
+
+          {pictureError && (
+            <div className="p-3 rounded-2xl bg-rose-50 border border-rose-100 flex items-center gap-2 text-rose-700 text-xs font-bold">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{pictureError}</span>
+            </div>
+          )}
+
+          {pictureSuccess && (
+            <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center gap-2 text-emerald-700 text-xs font-bold">
+              <Check className="w-4 h-4 shrink-0" />
+              <span>{pictureSuccess}</span>
+            </div>
+          )}
+
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept="image/jpeg,image/png,image/webp"
+            onChange={handleFileSelect}
+            className="hidden"
+          />
+
+          <div className="flex flex-wrap items-center gap-3">
+            {!previewUrl ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-xl text-xs font-bold shadow-sm transition cursor-pointer"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  {user?.profile_picture_url ? "Replace Photo" : "Upload Photo"}
+                </button>
+
+                {user?.profile_picture_url && (
+                  <button
+                    type="button"
+                    onClick={handleRemovePicture}
+                    disabled={deletingPicture}
+                    className="flex items-center gap-2 px-4 py-2 bg-rose-50 hover:bg-rose-100/80 active:bg-rose-200 text-rose-700 border border-rose-100 rounded-xl text-xs font-bold transition cursor-pointer disabled:opacity-50"
+                  >
+                    {deletingPicture ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                    )}
+                    Remove Photo
+                  </button>
+                )}
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={handleUploadPicture}
+                  disabled={uploadingPicture}
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl text-xs font-bold shadow-sm transition cursor-pointer disabled:opacity-50"
+                >
+                  {uploadingPicture ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Check className="w-3.5 h-3.5" />
+                  )}
+                  Save New Photo
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleCancelPreview}
+                  disabled={uploadingPicture}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </>
+            )}
+
+            <span className="text-[10px] text-slate-400 font-bold">
+              Supported: JPEG, PNG, WebP (Max 5MB)
+            </span>
+          </div>
+        </div>
+
+        {/* Avatar Customize Panel */}
+        <div className="border-t border-slate-100/80 pt-6 space-y-4">
+          <div>
+            <h3 className="text-xs font-bold text-slate-700">Customize Avatar Ring Accent</h3>
+            <p className="text-[10px] text-slate-400 font-bold mt-0.5">Select a pastel theme to border your photo or avatar initial across devices.</p>
           </div>
 
           <div className="grid grid-cols-5 gap-2.5 sm:grid-cols-8 md:grid-cols-15">

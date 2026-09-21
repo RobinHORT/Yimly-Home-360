@@ -43,6 +43,14 @@ async def on_startup() -> None:
                 # Column likely already exists, ignore
                 pass
 
+            # Dynamically migrate profile_picture_url if it doesn't exist
+            try:
+                await conn.execute(text("ALTER TABLE users ADD COLUMN profile_picture_url VARCHAR(500);"))
+                logger.info("Database migration: Added profile_picture_url column to users table.")
+            except Exception:
+                # Column likely already exists, ignore
+                pass
+
             # Dynamically migrate map_style if it doesn't exist
             try:
                 await conn.execute(text("ALTER TABLE users ADD COLUMN map_style VARCHAR(50) DEFAULT 'osm';"))
@@ -55,6 +63,11 @@ async def on_startup() -> None:
     except Exception as e:
         logger.critical(f"Database schema initialization failed: {e}")
         raise e
+
+# Persistent uploads directory setup
+uploads_path = os.path.join(os.getcwd(), "uploads")
+os.makedirs(os.path.join(uploads_path, "profile_pictures"), exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=uploads_path), name="uploads")
 
 # Register endpoint routers
 app.include_router(auth.router)
@@ -69,8 +82,8 @@ dist_path = os.path.join(os.getcwd(), "dist")
 
 @app.get("/{full_path:path}")
 async def serve_static_or_spa(full_path: str):
-    # Do not intercept API endpoints
-    if full_path.startswith("api/") or full_path == "api":
+    # Do not intercept API or uploads endpoints
+    if full_path.startswith("api/") or full_path == "api" or full_path.startswith("uploads/") or full_path == "uploads":
         return JSONResponse(status_code=404, content={"detail": "Not Found"})
     
     if os.path.exists(dist_path):

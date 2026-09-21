@@ -32,6 +32,7 @@ class MemberResponse(BaseModel):
     username: str
     display_name: str
     avatar_color: Optional[str] = None
+    profile_picture_url: Optional[str] = None
     devices: List[MemberDeviceLocation] = []
 
     class Config:
