@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { UserInfo } from "../types";
 import { PWAInstallButton } from "./PWAInstallButton";
-import { Settings, Smartphone, LogOut, HelpCircle } from "lucide-react";
+import { MAP_STYLES } from "../lib/mapStyles";
+import { Settings, Smartphone, LogOut, HelpCircle, Map, Check } from "lucide-react";
 
 interface SettingsTabProps {
   user: UserInfo | null;
@@ -39,6 +40,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ user, onLogout, onUser
   const [loading, setLoading] = useState(false);
   const [selectedColor, setSelectedColor] = useState<string | null>(user?.avatar_color || null);
   const [savingColor, setSavingColor] = useState(false);
+  const [selectedMapStyle, setSelectedMapStyle] = useState<string>(user?.map_style || "osm");
+  const [savingMapStyle, setSavingMapStyle] = useState(false);
 
   useEffect(() => {
     fetchDevices();
@@ -48,7 +51,38 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ user, onLogout, onUser
     if (user?.avatar_color) {
       setSelectedColor(user.avatar_color);
     }
+    if (user?.map_style) {
+      setSelectedMapStyle(user.map_style);
+    }
   }, [user]);
+
+  const handleSelectMapStyle = async (styleId: string) => {
+    setSelectedMapStyle(styleId);
+    setSavingMapStyle(true);
+    const token = localStorage.getItem("access_token");
+    if (!token) return;
+
+    try {
+      const res = await fetch("/api/auth/profile", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ map_style: styleId })
+      });
+      if (res.ok) {
+        const updatedUser = await res.json();
+        if (onUserUpdate) {
+          onUserUpdate(updatedUser);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to persist map style preference:", err);
+    } finally {
+      setSavingMapStyle(false);
+    }
+  };
 
   const handleSelectColor = async (colorHex: string) => {
     setSelectedColor(colorHex);
@@ -177,6 +211,59 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ user, onLogout, onUser
               );
             })}
           </div>
+        </div>
+      </div>
+
+      {/* MAP TILE STYLE SELECTOR CARD */}
+      <div className="bg-white p-7 sm:p-8 rounded-3xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.015)] space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Map className="w-5 h-5 text-indigo-600" />
+            <h2 className="text-base font-bold text-slate-800">Map Tile Style</h2>
+          </div>
+          {savingMapStyle && (
+            <span className="text-[10px] font-bold text-indigo-600 animate-pulse">
+              Saving preference...
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-slate-400 font-semibold leading-relaxed">
+          Select your preferred tile map style. This preference is stored directly in your Yimly Home Core account data on the server.
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
+          {MAP_STYLES.map((style) => {
+            const isSelected = selectedMapStyle === style.id;
+            return (
+              <button
+                key={style.id}
+                type="button"
+                onClick={() => handleSelectMapStyle(style.id)}
+                className={`p-4 rounded-2xl border text-left transition-all duration-200 cursor-pointer relative flex flex-col justify-between ${
+                  isSelected
+                    ? "border-indigo-500 bg-indigo-50/20 ring-2 ring-indigo-500/20 shadow-sm"
+                    : "border-slate-100 bg-slate-50/40 hover:bg-slate-50 hover:border-slate-200"
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${style.previewBg}`}>
+                    {style.name}
+                  </span>
+                  {isSelected ? (
+                    <div className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-sm">
+                      <Check className="w-3 h-3 stroke-[3]" />
+                    </div>
+                  ) : (
+                    <div className="w-5 h-5 rounded-full border border-slate-200 bg-white" />
+                  )}
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-800">{style.name}</p>
+                  <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{style.description}</p>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
 

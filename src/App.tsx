@@ -3,20 +3,16 @@ import { motion, AnimatePresence } from "motion/react";
 import {
   Lock,
   User,
-  CheckCircle,
   LogOut,
   RefreshCw,
   AlertCircle,
-  Eye,
-  EyeOff,
   Home,
   UserCheck,
   Compass,
   Bell,
   Settings as SettingsIcon,
   Users,
-  Smartphone,
-  Info
+  X
 } from "lucide-react";
 
 import { Circle, CircleMember, UserInfo } from "./types";
@@ -85,11 +81,9 @@ export default function App() {
     setStatus("checking");
     setError(null);
     const token = localStorage.getItem("access_token");
-    const savedUser = localStorage.getItem("user_info");
 
     if (token) {
       try {
-        // Validate session against the backend and fetch latest profile data
         const res = await fetch("/api/auth/me", {
           headers: {
             Authorization: `Bearer ${token}`
@@ -104,7 +98,6 @@ export default function App() {
           await fetchCircles(token);
           return;
         } else {
-          // Token is expired or invalid, clear local storage
           localStorage.removeItem("access_token");
           localStorage.removeItem("user_info");
         }
@@ -113,7 +106,6 @@ export default function App() {
       }
     }
 
-    // Determine if setup is required
     try {
       const setupRes = await fetch("/api/setup/status");
       if (setupRes.ok) {
@@ -149,7 +141,6 @@ export default function App() {
         const data = await res.json();
         setCircles(data);
         if (data.length > 0) {
-          // If no circle selected or selected circle is not in the list, choose the first
           if (!selectedCircle || !data.some((c: Circle) => c.id === selectedCircle.id)) {
             setSelectedCircle(data[0]);
           }
@@ -159,13 +150,13 @@ export default function App() {
         }
       }
     } catch (err) {
-      console.error("Error fetching family circles:", err);
+      console.warn("Unable to reach family circles API:", err);
     } finally {
       setCirclesLoading(false);
     }
   };
 
-  // FETCH CIRCLE MEMBERS (AND RELEVANT TRACKERS)
+  // FETCH CIRCLE MEMBERS
   const fetchCircleMembers = async (circleId: number, silent = false) => {
     if (!circleId) return;
     const token = localStorage.getItem("access_token");
@@ -187,7 +178,7 @@ export default function App() {
         setCircleMembers([]);
       }
     } catch (err) {
-      console.error("Error loading circle members:", err);
+      console.warn("Unable to update circle members (transient network state):", err);
     } finally {
       if (!silent) setCirclesLoading(false);
     }
@@ -245,7 +236,6 @@ export default function App() {
     e.preventDefault();
     setError(null);
 
-    // Frontend validations
     if (!username.trim() || !displayName.trim() || !password || !confirmPassword) {
       setError("All fields are required.");
       return;
@@ -277,13 +267,11 @@ export default function App() {
         })
       });
 
-      const data = await res.json();
-
       if (res.ok) {
-        // Automatically attempt to log in with the new account
         await performLogin(username.trim(), password);
       } else {
-        setError(data.detail || "Account creation failed. Please check your credentials.");
+        const data = await res.json();
+        setError(data.detail || "Account creation failed.");
         setLoading(false);
       }
     } catch (err) {
@@ -325,11 +313,8 @@ export default function App() {
         localStorage.setItem("user_info", JSON.stringify(data.user));
         setUser(data.user);
         setStatus("authenticated");
-        
-        // Load circles instantly on login
         await fetchCircles(data.access_token);
 
-        // Reset form inputs safely
         setPassword("");
         setConfirmPassword("");
         setUsername("");
@@ -355,138 +340,29 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
+    <div className="w-screen h-screen overflow-hidden bg-slate-900 text-slate-900 font-sans relative select-none">
       
       {/* AUTHENTICATED SYSTEM FLOW */}
       {status === "authenticated" ? (
-        <div className="flex-1 flex flex-col md:flex-row h-screen overflow-hidden">
+        <div className="relative w-full h-full overflow-hidden">
           
-          {/* SIDEBAR NAVIGATION - DESKTOP */}
-          <aside className="hidden md:flex flex-col w-64 bg-[#fafbfe]/90 backdrop-blur-md border-r border-slate-100 p-6 shrink-0 justify-between">
-            <div className="space-y-6">
-              {/* Brand Logo & Name */}
-              <div className="flex items-center gap-3 select-none">
-                <div className="h-10 w-10 rounded-2xl bg-indigo-500/10 border border-indigo-100/30 flex items-center justify-center text-indigo-600 shadow-sm">
-                  <Home className="h-5 w-5" />
-                </div>
-                <div>
-                  <h1 className="text-xs font-black tracking-wider text-slate-800 leading-tight">
-                    YIMLY HOME
-                  </h1>
-                  <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest block">
-                    Family Circle Hub
-                  </span>
-                </div>
+          {/* 1. FULL-SCREEN DOMINANT MAP BACKGROUND */}
+          <div className="absolute inset-0 z-0 w-full h-full">
+            <MapComponent
+              members={circleMembers}
+              onRefresh={() => selectedCircle && fetchCircleMembers(selectedCircle.id)}
+              loading={circlesLoading}
+              mapStyle={user?.map_style}
+            />
+          </div>
+
+          {/* 2. FLOATING TOP HEADER & CIRCLE SELECTOR */}
+          <header className="fixed top-4 left-4 right-16 md:right-auto md:max-w-md z-30 pointer-events-auto">
+            <div className="flex items-center gap-2">
+              <div className="h-10 w-10 bg-white/90 backdrop-blur-2xl rounded-full border border-white/80 shadow-xl flex items-center justify-center text-indigo-600 shrink-0">
+                <Home className="h-5 w-5" />
               </div>
-
-              {/* Navigation Tabs List */}
-              <nav className="space-y-1.5">
-                <button
-                  onClick={() => setActiveTab("map")}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs font-bold transition cursor-pointer ${
-                    activeTab === "map"
-                      ? "bg-indigo-50 text-indigo-600 border border-indigo-100/40 shadow-sm"
-                      : "text-slate-500 hover:bg-slate-50/50 hover:text-slate-800"
-                  }`}
-                >
-                  <Home className="w-4 h-4 shrink-0" />
-                  Map Homepage
-                </button>
-
-                <button
-                  onClick={() => setActiveTab("people")}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs font-bold transition cursor-pointer ${
-                    activeTab === "people"
-                      ? "bg-indigo-50 text-indigo-600 border border-indigo-100/40 shadow-sm"
-                      : "text-slate-500 hover:bg-slate-50/50 hover:text-slate-800"
-                  }`}
-                >
-                  <Users className="w-4 h-4 shrink-0" />
-                  Family Members
-                </button>
-
-                <button
-                  onClick={() => setActiveTab("places")}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs font-bold transition cursor-pointer ${
-                    activeTab === "places"
-                      ? "bg-indigo-50 text-indigo-600 border border-indigo-100/40 shadow-sm"
-                      : "text-slate-500 hover:bg-slate-50/50 hover:text-slate-800"
-                  }`}
-                >
-                  <Compass className="w-4 h-4 shrink-0" />
-                  Circle Places
-                </button>
-
-                <button
-                  onClick={() => setActiveTab("alerts")}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs font-bold transition cursor-pointer ${
-                    activeTab === "alerts"
-                      ? "bg-indigo-50 text-indigo-600 border border-indigo-100/40 shadow-sm"
-                      : "text-slate-500 hover:bg-slate-50/50 hover:text-slate-800"
-                  }`}
-                >
-                  <Bell className="w-4 h-4 shrink-0" />
-                  Circle Alerts
-                </button>
-
-                <button
-                  onClick={() => setActiveTab("settings")}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs font-bold transition cursor-pointer ${
-                    activeTab === "settings"
-                      ? "bg-indigo-50 text-indigo-600 border border-indigo-100/40 shadow-sm"
-                      : "text-slate-500 hover:bg-slate-50/50 hover:text-slate-800"
-                  }`}
-                >
-                  <SettingsIcon className="w-4 h-4 shrink-0" />
-                  App Settings
-                </button>
-              </nav>
-            </div>
-
-            {/* Logged in metadata / status footer */}
-            <div className="border-t border-slate-100/60 pt-4 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div 
-                  className="h-9 w-9 rounded-full text-white font-bold text-xs flex items-center justify-center select-none shadow-sm transition-all duration-300"
-                  style={{ 
-                    backgroundColor: user?.avatar_color || "#4f46e5", 
-                    border: user?.avatar_color ? "2px solid white" : "none",
-                    boxShadow: user?.avatar_color ? `0 0 0 2px ${user.avatar_color}` : "none" 
-                  }}
-                >
-                  {user?.display_name?.charAt(0).toUpperCase()}
-                </div>
-                <div className="truncate w-28">
-                  <p className="text-xs font-bold text-slate-800 truncate">{user?.display_name}</p>
-                  <span className="text-[9px] text-slate-400 font-semibold truncate block">{user?.username}</span>
-                </div>
-              </div>
-              <button
-                onClick={handleLogout}
-                className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50/80 transition cursor-pointer"
-                title="Sign Out"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-            </div>
-          </aside>
-
-          {/* MAIN CONTAINER LAYOUT */}
-          <main className="flex-1 flex flex-col h-full overflow-hidden">
-            
-            {/* TOP HEADER / BAR */}
-            <header className="bg-white/95 backdrop-blur-md border-b border-slate-100 px-4 py-3 shrink-0 flex items-center justify-between z-10">
-              <div className="flex items-center gap-2.5 md:hidden select-none">
-                <div className="h-8 w-8 rounded-xl bg-indigo-500/10 border border-indigo-100/20 flex items-center justify-center text-indigo-600 shadow-sm">
-                  <Home className="h-4.5 w-4.5" />
-                </div>
-                <h1 className="text-xs font-black tracking-wider text-slate-800 leading-none">
-                  YIMLY
-                </h1>
-              </div>
-
-              {/* Circle Selector component integrated securely */}
-              <div className="flex-1 md:max-w-xl">
+              <div className="flex-1 min-w-0">
                 <CircleSelector
                   circles={circles}
                   selectedCircle={selectedCircle}
@@ -496,148 +372,196 @@ export default function App() {
                   loading={circlesLoading}
                 />
               </div>
-            </header>
+            </div>
+          </header>
 
-            {/* TAB CONTAINER WITH TRANSITIONS */}
-            <div className="flex-1 overflow-y-auto p-4 md:p-6 pb-24 md:pb-6">
-              <AnimatePresence mode="wait">
-                {activeTab === "map" && (
-                  <motion.div
-                    key="map"
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -5 }}
-                    transition={{ duration: 0.15 }}
-                    className="w-full h-[calc(100vh-140px)] md:h-[calc(100vh-110px)]"
+          {/* 3. FLOATING NAVIGATION DOCK (DESKTOP) */}
+          <nav className="hidden md:flex fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-white/85 backdrop-blur-2xl p-2 rounded-full border border-white/80 shadow-2xl items-center gap-1.5 pointer-events-auto">
+            <button
+              onClick={() => setActiveTab("map")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-black transition cursor-pointer ${
+                activeTab === "map"
+                  ? "bg-slate-900 text-white shadow-md"
+                  : "text-slate-600 hover:bg-slate-100/70"
+              }`}
+            >
+              <Home className="w-4 h-4" />
+              <span>Map</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("people")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-black transition cursor-pointer ${
+                activeTab === "people"
+                  ? "bg-slate-900 text-white shadow-md"
+                  : "text-slate-600 hover:bg-slate-100/70"
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              <span>People</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("places")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-black transition cursor-pointer ${
+                activeTab === "places"
+                  ? "bg-slate-900 text-white shadow-md"
+                  : "text-slate-600 hover:bg-slate-100/70"
+              }`}
+            >
+              <Compass className="w-4 h-4" />
+              <span>Places</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("alerts")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-black transition cursor-pointer ${
+                activeTab === "alerts"
+                  ? "bg-slate-900 text-white shadow-md"
+                  : "text-slate-600 hover:bg-slate-100/70"
+              }`}
+            >
+              <Bell className="w-4 h-4" />
+              <span>Alerts</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("settings")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-black transition cursor-pointer ${
+                activeTab === "settings"
+                  ? "bg-slate-900 text-white shadow-md"
+                  : "text-slate-600 hover:bg-slate-100/70"
+              }`}
+            >
+              <SettingsIcon className="w-4 h-4" />
+              <span>Settings</span>
+            </button>
+
+            <div className="w-px h-6 bg-slate-200/80 my-auto mx-1" />
+
+            {/* Profile Avatar Pill */}
+            <div 
+              onClick={() => setActiveTab("settings")}
+              className="w-8 h-8 rounded-full text-white font-extrabold text-xs flex items-center justify-center cursor-pointer shadow-sm transition hover:scale-105"
+              style={{
+                backgroundColor: user?.avatar_color || "#4f46e5",
+                boxShadow: `0 0 0 2px white, 0 2px 8px ${user?.avatar_color || '#4f46e5'}60`
+              }}
+              title={`${user?.display_name} (Settings)`}
+            >
+              {user?.display_name?.charAt(0).toUpperCase()}
+            </div>
+          </nav>
+
+          {/* FLOATING NAVIGATION DOCK (MOBILE) */}
+          <nav className="md:hidden fixed bottom-4 left-4 right-4 z-40 bg-white/85 backdrop-blur-2xl p-2 rounded-full border border-white/80 shadow-2xl flex justify-around items-center pointer-events-auto">
+            <button
+              onClick={() => setActiveTab("map")}
+              className={`flex flex-col items-center gap-1 py-1.5 px-3.5 rounded-full transition cursor-pointer ${
+                activeTab === "map" ? "text-indigo-600 bg-indigo-50 font-black" : "text-slate-500"
+              }`}
+            >
+              <Home className="w-4.5 h-4.5" />
+              <span className="text-[9px] font-extrabold tracking-wider uppercase">Map</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("people")}
+              className={`flex flex-col items-center gap-1 py-1.5 px-3.5 rounded-full transition cursor-pointer ${
+                activeTab === "people" ? "text-indigo-600 bg-indigo-50 font-black" : "text-slate-500"
+              }`}
+            >
+              <Users className="w-4.5 h-4.5" />
+              <span className="text-[9px] font-extrabold tracking-wider uppercase">People</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("places")}
+              className={`flex flex-col items-center gap-1 py-1.5 px-3.5 rounded-full transition cursor-pointer ${
+                activeTab === "places" ? "text-indigo-600 bg-indigo-50 font-black" : "text-slate-500"
+              }`}
+            >
+              <Compass className="w-4.5 h-4.5" />
+              <span className="text-[9px] font-extrabold tracking-wider uppercase">Places</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("alerts")}
+              className={`flex flex-col items-center gap-1 py-1.5 px-3.5 rounded-full transition cursor-pointer ${
+                activeTab === "alerts" ? "text-indigo-600 bg-indigo-50 font-black" : "text-slate-500"
+              }`}
+            >
+              <Bell className="w-4.5 h-4.5" />
+              <span className="text-[9px] font-extrabold tracking-wider uppercase">Alerts</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("settings")}
+              className={`flex flex-col items-center gap-1 py-1.5 px-3.5 rounded-full transition cursor-pointer ${
+                activeTab === "settings" ? "text-indigo-600 bg-indigo-50 font-black" : "text-slate-500"
+              }`}
+            >
+              <SettingsIcon className="w-4.5 h-4.5" />
+              <span className="text-[9px] font-extrabold tracking-wider uppercase">Settings</span>
+            </button>
+          </nav>
+
+          {/* 4. SECONDARY TABS FLOATING MODAL OVERLAY */}
+          <AnimatePresence>
+            {activeTab !== "map" && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.96 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.96 }}
+                transition={{ duration: 0.2 }}
+                className="fixed inset-4 md:inset-12 bottom-20 md:bottom-20 z-30 bg-white/95 backdrop-blur-3xl rounded-3xl p-6 md:p-8 shadow-2xl border border-white/80 overflow-y-auto max-w-4xl mx-auto pointer-events-auto"
+              >
+                {/* Modal Header Bar */}
+                <div className="flex items-center justify-between pb-4 mb-6 border-b border-slate-100">
+                  <span className="text-xs font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">
+                    {activeTab} view
+                  </span>
+
+                  <button
+                    onClick={() => setActiveTab("map")}
+                    className="p-2 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer flex items-center gap-1 text-xs font-bold"
                   >
-                    <MapComponent
-                      members={circleMembers}
-                      onRefresh={() => selectedCircle && fetchCircleMembers(selectedCircle.id)}
-                      loading={circlesLoading}
-                    />
-                  </motion.div>
-                )}
+                    <span>Back to Map</span>
+                    <X className="w-4.5 h-4.5" />
+                  </button>
+                </div>
 
+                {/* Secondary Tab Content */}
                 {activeTab === "people" && (
-                  <motion.div
-                    key="people"
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -5 }}
-                    transition={{ duration: 0.15 }}
-                  >
-                    <PeopleTab members={circleMembers} loading={circlesLoading} />
-                  </motion.div>
+                  <PeopleTab members={circleMembers} loading={circlesLoading} />
                 )}
 
                 {activeTab === "places" && (
-                  <motion.div
-                    key="places"
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -5 }}
-                    transition={{ duration: 0.15 }}
-                  >
-                    <PlacesTab />
-                  </motion.div>
+                  <PlacesTab />
                 )}
 
                 {activeTab === "alerts" && (
-                  <motion.div
-                    key="alerts"
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -5 }}
-                    transition={{ duration: 0.15 }}
-                  >
-                    <AlertsTab />
-                  </motion.div>
+                  <AlertsTab />
                 )}
 
                 {activeTab === "settings" && (
-                  <motion.div
-                    key="settings"
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -5 }}
-                    transition={{ duration: 0.15 }}
-                  >
-                    <SettingsTab 
-                      user={user} 
-                      onLogout={handleLogout} 
-                      onUserUpdate={(updated) => {
-                        setUser(updated);
-                        localStorage.setItem("user_info", JSON.stringify(updated));
-                      }} 
-                    />
-                  </motion.div>
+                  <SettingsTab
+                    user={user}
+                    onLogout={handleLogout}
+                    onUserUpdate={(updated) => {
+                      setUser(updated);
+                      localStorage.setItem("user_info", JSON.stringify(updated));
+                    }}
+                  />
                 )}
-              </AnimatePresence>
-            </div>
-
-            {/* MOBILE BOTTOM NAVIGATION TABS */}
-            <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-100 px-2 py-2 flex justify-around items-center z-[999] shadow-[0_-4px_20px_rgba(148,163,184,0.06)] rounded-t-3xl">
-              <button
-                onClick={() => setActiveTab("map")}
-                className={`flex flex-col items-center gap-1.5 py-1 px-4.5 rounded-2xl transition cursor-pointer ${
-                  activeTab === "map" ? "text-indigo-600 bg-indigo-50/60 font-bold" : "text-slate-400"
-                }`}
-              >
-                <Home className="w-5 h-5" />
-                <span className="text-[9px] uppercase tracking-wider font-semibold">Map</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab("people")}
-                className={`flex flex-col items-center gap-1.5 py-1 px-4.5 rounded-2xl transition cursor-pointer ${
-                  activeTab === "people" ? "text-indigo-600 bg-indigo-50/60 font-bold" : "text-slate-400"
-                }`}
-              >
-                <Users className="w-5 h-5" />
-                <span className="text-[9px] uppercase tracking-wider font-semibold">People</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab("places")}
-                className={`flex flex-col items-center gap-1.5 py-1 px-4.5 rounded-2xl transition cursor-pointer ${
-                  activeTab === "places" ? "text-indigo-600 bg-indigo-50/60 font-bold" : "text-slate-400"
-                }`}
-              >
-                <Compass className="w-5 h-5" />
-                <span className="text-[9px] uppercase tracking-wider font-semibold">Places</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab("alerts")}
-                className={`flex flex-col items-center gap-1.5 py-1 px-4.5 rounded-2xl transition cursor-pointer ${
-                  activeTab === "alerts" ? "text-indigo-600 bg-indigo-50/60 font-bold" : "text-slate-400"
-                }`}
-              >
-                <Bell className="w-5 h-5" />
-                <span className="text-[9px] uppercase tracking-wider font-semibold">Alerts</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab("settings")}
-                className={`flex flex-col items-center gap-1.5 py-1 px-4.5 rounded-2xl transition cursor-pointer ${
-                  activeTab === "settings" ? "text-indigo-600 bg-indigo-50/60 font-bold" : "text-slate-400"
-                }`}
-              >
-                <SettingsIcon className="w-5 h-5" />
-                <span className="text-[9px] uppercase tracking-wider font-semibold">Settings</span>
-              </button>
-            </nav>
-          </main>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
         </div>
       ) : (
-        /* FIRST-RUN SETUP / LOGIN / ANONYMOUS FLOW */
-        <div className="min-h-screen flex flex-col justify-between py-12 px-4 sm:px-6 lg:px-8">
-          <div className="sr-only" role="status" aria-live="polite">
-            {error && `Error: ${error}`}
-            {status === "checking" && "Checking server connection status."}
-          </div>
-
+        /* FIRST-RUN SETUP / LOGIN FLOW */
+        <div className="min-h-screen bg-slate-50 flex flex-col justify-between py-12 px-4 sm:px-6 lg:px-8">
           <header className="flex flex-col items-center space-y-3 select-none" id="app-header">
             <div className="h-12 w-12 rounded-2xl bg-indigo-50/80 text-indigo-600 flex items-center justify-center shadow-sm border border-indigo-100/30">
               <Home className="h-6 w-6" />
@@ -679,13 +603,13 @@ export default function App() {
                     <h2 className="text-lg font-bold text-slate-800">Create your account</h2>
                     <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
                       {status === "setup"
-                        ? "First-run installation detected. Set up your administrator credentials."
+                        ? "First-run installation detected. Set up administrator credentials."
                         : "Create your user account to join a Family Circle."}
                     </p>
                   </div>
 
                   {error && (
-                    <div className="bg-rose-50 border border-rose-100 text-rose-700 p-3 rounded-2xl flex items-start gap-2 text-xs" role="alert">
+                    <div className="bg-rose-50 border border-rose-100 text-rose-700 p-3 rounded-2xl flex items-start gap-2 text-xs">
                       <AlertCircle className="h-4.5 w-4.5 shrink-0 mt-0.5 text-rose-500" />
                       <span>{error}</span>
                     </div>
@@ -702,13 +626,12 @@ export default function App() {
                           id="setup-username"
                           name="username"
                           type="text"
-                          autoComplete="username"
                           required
                           value={username}
                           onChange={(e) => setUsername(e.target.value)}
                           placeholder="e.g. admin or admin@example.com"
                           disabled={loading}
-                          className="w-full pl-11 pr-4 py-3 bg-slate-50/50 border border-slate-100 rounded-2xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-400 transition"
+                          className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-400 transition"
                         />
                       </div>
                     </div>
@@ -723,13 +646,12 @@ export default function App() {
                           id="setup-display-name"
                           name="displayName"
                           type="text"
-                          autoComplete="name"
                           required
                           value={displayName}
                           onChange={(e) => setDisplayName(e.target.value)}
                           placeholder="e.g. Administrator"
                           disabled={loading}
-                          className="w-full pl-11 pr-4 py-3 bg-slate-50/50 border border-slate-100 rounded-2xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-400 transition"
+                          className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-400 transition"
                         />
                       </div>
                     </div>
@@ -744,21 +666,13 @@ export default function App() {
                           id="setup-password"
                           name="password"
                           type={showPassword ? "text" : "password"}
-                          autoComplete="new-password"
                           required
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
-                          placeholder="Minimum 6 characters"
+                          placeholder="••••••••"
                           disabled={loading}
-                          className="w-full pl-11 pr-11 py-3 bg-slate-50/50 border border-slate-100 rounded-2xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-400 transition"
+                          className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-400 transition"
                         />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-600 transition cursor-pointer"
-                        >
-                          {showPassword ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
-                        </button>
                       </div>
                     </div>
 
@@ -772,13 +686,12 @@ export default function App() {
                           id="setup-confirm-password"
                           name="confirmPassword"
                           type={showPassword ? "text" : "password"}
-                          autoComplete="new-password"
                           required
                           value={confirmPassword}
                           onChange={(e) => setConfirmPassword(e.target.value)}
-                          placeholder="Repeat password"
+                          placeholder="••••••••"
                           disabled={loading}
-                          className="w-full pl-11 pr-4 py-3 bg-slate-50/50 border border-slate-100 rounded-2xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-400 transition"
+                          className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-400 transition"
                         />
                       </div>
                     </div>
@@ -786,37 +699,11 @@ export default function App() {
                     <button
                       type="submit"
                       disabled={loading}
-                      className="w-full bg-indigo-600/90 hover:bg-indigo-600 active:bg-indigo-700 disabled:bg-indigo-400/80 text-white font-bold py-3 rounded-2xl text-xs uppercase tracking-wider transition focus:outline-none focus:ring-4 focus:ring-indigo-500/20 shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
+                      className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 rounded-2xl text-xs uppercase tracking-wider transition shadow-sm"
                     >
-                      {loading ? (
-                        <>
-                          <RefreshCw className="h-4 w-4 animate-spin" />
-                          <span>Creating account...</span>
-                        </>
-                      ) : (
-                        <span>Create Account</span>
-                      )}
+                      {loading ? "Creating account..." : "Complete Setup"}
                     </button>
                   </form>
-
-                  {status === "register" && (
-                    <div className="text-center mt-2.5">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setError(null);
-                          setUsername("");
-                          setPassword("");
-                          setConfirmPassword("");
-                          setDisplayName("");
-                          setStatus("login");
-                        }}
-                        className="text-xs text-indigo-600 hover:text-indigo-700 font-bold cursor-pointer transition"
-                      >
-                        Already have an account? Log In
-                      </button>
-                    </div>
-                  )}
                 </motion.div>
               )}
 
@@ -830,14 +717,14 @@ export default function App() {
                   className="w-full max-w-md bg-white rounded-3xl shadow-[0_16px_48px_rgba(148,163,184,0.08)] border border-slate-100 p-8 space-y-6"
                 >
                   <div className="text-center">
-                    <h2 className="text-lg font-bold text-slate-800">Log In</h2>
+                    <h2 className="text-lg font-bold text-slate-800">Sign in to Yimly Home</h2>
                     <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
-                      Authenticate to connect to Yimly Home
+                      Enter your account credentials to access your family map.
                     </p>
                   </div>
 
                   {error && (
-                    <div className="bg-rose-50 border border-rose-100 text-rose-700 p-3 rounded-2xl flex items-start gap-2 text-xs" role="alert">
+                    <div className="bg-rose-50 border border-rose-100 text-rose-700 p-3 rounded-2xl flex items-start gap-2 text-xs">
                       <AlertCircle className="h-4.5 w-4.5 shrink-0 mt-0.5 text-rose-500" />
                       <span>{error}</span>
                     </div>
@@ -854,13 +741,12 @@ export default function App() {
                           id="login-username"
                           name="username"
                           type="text"
-                          autoComplete="username"
                           required
                           value={username}
                           onChange={(e) => setUsername(e.target.value)}
-                          placeholder="Username or email"
+                          placeholder="e.g. admin"
                           disabled={loading}
-                          className="w-full pl-11 pr-4 py-3 bg-slate-50/50 border border-slate-100 rounded-2xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-400 transition"
+                          className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-400 transition"
                         />
                       </div>
                     </div>
@@ -875,67 +761,44 @@ export default function App() {
                           id="login-password"
                           name="password"
                           type={showPassword ? "text" : "password"}
-                          autoComplete="current-password"
                           required
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
-                          placeholder="Enter password"
+                          placeholder="••••••••"
                           disabled={loading}
-                          className="w-full pl-11 pr-11 py-3 bg-slate-50/50 border border-slate-100 rounded-2xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-400 transition"
+                          className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-400 transition"
                         />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-600 transition cursor-pointer"
-                        >
-                          {showPassword ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
-                        </button>
                       </div>
                     </div>
 
                     <button
                       type="submit"
                       disabled={loading}
-                      className="w-full bg-indigo-600/90 hover:bg-indigo-600 active:bg-indigo-700 disabled:bg-indigo-400/80 text-white font-bold py-3 rounded-2xl text-xs uppercase tracking-wider transition focus:outline-none focus:ring-4 focus:ring-indigo-500/20 shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
+                      className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 rounded-2xl text-xs uppercase tracking-wider transition shadow-sm"
                     >
-                      {loading ? (
-                        <>
-                          <RefreshCw className="h-4 w-4 animate-spin" />
-                          <span>Logging in...</span>
-                        </>
-                      ) : (
-                        <span>Log In</span>
-                      )}
+                      {loading ? "Signing in..." : "Sign In"}
                     </button>
-                  </form>
 
-                  <div className="text-center mt-2.5">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setError(null);
-                        setUsername("");
-                        setPassword("");
-                        setConfirmPassword("");
-                        setDisplayName("");
-                        setStatus("register");
-                      }}
-                      className="text-xs text-indigo-600 hover:text-indigo-700 font-bold cursor-pointer transition"
-                    >
-                      Don't have an account? Create Account / Sign Up
-                    </button>
-                  </div>
+                    <div className="pt-2 text-center">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setError(null);
+                          setStatus("register");
+                        }}
+                        className="text-xs text-indigo-600 font-bold hover:underline cursor-pointer"
+                      >
+                        Need an account? Register
+                      </button>
+                    </div>
+                  </form>
                 </motion.div>
               )}
             </AnimatePresence>
           </main>
 
-          <footer className="text-center text-xs text-slate-400 font-medium tracking-wide flex flex-col items-center space-y-1 select-none" id="app-footer">
-            <p>© 2026 Yimly Technologies. All rights reserved.</p>
-            <div className="flex items-center gap-1.5 justify-center">
-              <span className="h-1.5 w-1.5 bg-emerald-500 rounded-full animate-pulse" />
-              <span>Core Security Enabled</span>
-            </div>
+          <footer className="text-center text-[11px] text-slate-400 font-medium">
+            &copy; {new Date().getFullYear()} Yimly Home Core Bridge. All rights reserved.
           </footer>
         </div>
       )}

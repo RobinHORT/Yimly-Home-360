@@ -1,0 +1,84 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "username": "admin@yimly.home",
+      "password_hash": "$2b$10$m4WjH4UYq98/cYTz.wcVWud5YF6lGKYSoC41ef7M.AQgVkirA3aRG",
+      "display_name": "Yimly Admin (Preview)",
+      "avatar_color": "#bbf7d0",
+      "created_at": "2026-09-21T06:41:22.503Z",
+      "map_style": "osm"
+    },
+    {
+      "id": 2,
+      "username": "member@yimly.home",
+      "password_hash": "$2b$10$m4WjH4UYq98/cYTz.wcVWud5YF6lGKYSoC41ef7M.AQgVkirA3aRG",
+      "display_name": "Circle Member (Preview)",
+      "avatar_color": "#fbcfe8",
+      "created_at": "2026-09-21T06:41:22.503Z"
+    },
+    {
+      "id": 3,
+      "username": "RobinHORT",
+      "password_hash": "$2b$10$./mwghI4Lum5DLHVzPJ4wO3dL6hrlZPyrmHslaBf5bDC8WfwErsyC",
+      "display_name": "Houth",
+      "avatar_color": "#E2D9F3",
+      "created_at": "2026-09-21T07:39:57.470Z",
+      "map_style": "openfree_positron"
+    }
+  ],
+  "circles": [
+    {
+      "id": 1,
+      "name": "Yimly Family Circle (Preview)",
+      "owner_id": 1,
+      "invite_code": "YIMLY-PREVIEW-HQ",
+      "created_at": "2026-09-21T06:41:22.503Z"
+    }
+  ],
+  "circle_members": [
+    {
+      "circle_id": 1,
+      "user_id": 1
+    },
+    {
+      "circle_id": 1,
+      "user_id": 2
+    },
+    {
+      "circle_id": 1,
+      "user_id": 3
+    }
+  ],
+  "entity_states": [
+    {
+      "entity_id": "device_tracker.admin_preview_phone",
+      "user_id": 1,
+      "domain": "device_tracker",
+      "state": "home",
+      "attributes": {
+        "friendly_name": "Admin's Preview Phone",
+        "battery_level": 95,
+        "gps_accuracy": 5
+      },
+      "latitude": 37.7749,
+      "longitude": -122.4194,
+      "last_updated": "2026-09-21T06:41:22.503Z"
+    },
+    {
+      "entity_id": "device_tracker.member_preview_phone",
+      "user_id": 2,
+      "domain": "device_tracker",
+      "state": "not_home",
+      "attributes": {
+        "friendly_name": "Member's Preview Phone",
+        "battery_level": 82,
+        "gps_accuracy": 10
+      },
+      "latitude": 37.7833,
+      "longitude": -122.4167,
+      "last_updated": "2026-09-21T06:41:22.503Z"
+    }
+  ],
+  "location_history": []
+}

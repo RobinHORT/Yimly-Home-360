@@ -257,7 +257,8 @@ async def api_login(login_in: LoginRequest, db: AsyncSession = Depends(get_db)):
             "id": user.id,
             "username": user.username,
             "display_name": user.display_name,
-            "avatar_color": user.avatar_color
+            "avatar_color": user.avatar_color,
+            "map_style": user.map_style or "osm"
         }
     }
 
@@ -266,6 +267,7 @@ from app.api.deps import require_authenticated_user
 
 class ProfileUpdate(BaseModel):
     avatar_color: Optional[str] = None
+    map_style: Optional[str] = None
 
 @router.get("/api/auth/me", response_model=UserResponse)
 async def get_me(current_user: User = Depends(require_authenticated_user)):
@@ -277,7 +279,17 @@ async def update_profile(
     current_user: User = Depends(require_authenticated_user),
     db: AsyncSession = Depends(get_db)
 ):
-    current_user.avatar_color = profile_in.avatar_color
+    if profile_in.avatar_color is not None:
+        current_user.avatar_color = profile_in.avatar_color
+    if profile_in.map_style is not None:
+        allowed_styles = {"osm", "openfree_positron", "openfree_bright", "openfree_liberty", "openfree_dark", "openfree_fiord", "carto_voyager", "carto_positron", "carto_dark"}
+        if profile_in.map_style in allowed_styles:
+            current_user.map_style = profile_in.map_style
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid map_style value. Must be one of {allowed_styles}"
+            )
     db.add(current_user)
     await db.commit()
     await db.refresh(current_user)

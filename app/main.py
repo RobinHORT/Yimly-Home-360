@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from app.core.config import settings
 from app.core.logging import setup_logging, logger
 from app.db.database import Base, engine
@@ -42,6 +42,14 @@ async def on_startup() -> None:
             except Exception:
                 # Column likely already exists, ignore
                 pass
+
+            # Dynamically migrate map_style if it doesn't exist
+            try:
+                await conn.execute(text("ALTER TABLE users ADD COLUMN map_style VARCHAR(50) DEFAULT 'osm';"))
+                logger.info("Database migration: Added map_style column to users table.")
+            except Exception:
+                # Column likely already exists, ignore
+                pass
                 
         logger.info("Database schemas created/verified successfully.")
     except Exception as e:
@@ -56,17 +64,27 @@ app.include_router(webhook.router)
 app.include_router(websocket.router)
 app.include_router(circles.router)
 
-# Serve the static compiled React app if built in dist/
+# Serve the static compiled React app from dist/
 dist_path = os.path.join(os.getcwd(), "dist")
-if os.path.exists(dist_path):
-    app.mount("/", StaticFiles(directory=dist_path, html=True), name="static")
-else:
-    @app.get("/")
-    async def fallback_root():
-        return JSONResponse(
-            status_code=200,
-            content={
-                "status": "online",
-                "message": "Home Assistant compatible server is running. No static frontend build found in dist/."
-            }
-        )
+
+@app.get("/{full_path:path}")
+async def serve_static_or_spa(full_path: str):
+    # Do not intercept API endpoints
+    if full_path.startswith("api/") or full_path == "api":
+        return JSONResponse(status_code=404, content={"detail": "Not Found"})
+    
+    if os.path.exists(dist_path):
+        target_file = os.path.join(dist_path, full_path)
+        if full_path and os.path.isfile(target_file):
+            return FileResponse(target_file)
+        index_file = os.path.join(dist_path, "index.html")
+        if os.path.exists(index_file):
+            return FileResponse(index_file)
+            
+    return JSONResponse(
+        status_code=200,
+        content={
+            "status": "online",
+            "message": "Home Assistant compatible server is running."
+        }
+    )

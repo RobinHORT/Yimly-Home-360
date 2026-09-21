@@ -3,6 +3,7 @@ export interface UserInfo {
   username: string;
   display_name: string;
   avatar_color?: string | null;
+  map_style?: string | null;
 }
 
 export interface MemberDeviceLocation {
